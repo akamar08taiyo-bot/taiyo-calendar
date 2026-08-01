@@ -339,6 +339,11 @@ export default function App() {
     setSidebarOpen(false)
   }
 
+  function printFromCalendar() {
+    openPrintTab()
+    setPendingPrint(true)
+  }
+
   async function openSettings() {
     setDialog('settings'); setSettingsLoading(true)
     try { const [configuration, audit] = await Promise.all([api.settings(), api.audit()]); setSettings(configuration); setAuditLogs(audit.logs) }
@@ -360,7 +365,7 @@ export default function App() {
 
   let pageContent
   if (activeTab === 'calendar') {
-    pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenAnalysis={() => setActiveTab('analysis')} canImport={session.permissions.canImport}/>
+    pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} onOpenAnalysis={() => setActiveTab('analysis')} canImport={session.permissions.canImport}/>
   } else if (activeTab === 'analysis') {
     pageContent = <AnalysisView fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} analytics={analytics} loading={analyticsLoading} scopeLabel={selectedStaffName || '営業所全体'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} canSelectStaff={session.user.role !== 'staff'} onBack={() => setActiveTab('calendar')} onPdf={openPdfDialog}/>
   } else {

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { daysForMonth, visitValueLabel } from '../calendar-utils'
 import { Button, Icon } from './Icon'
 
-export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onOpenHidden, onOpenImport, onOpenPdf, onOpenAnalysis, canImport }) {
+export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onOpenHidden, onOpenImport, onOpenPdf, onOpenPrint, onOpenAnalysis, canImport }) {
   const [selected, setSelected] = useState(null)
   const [attendanceDraft, setAttendanceDraft] = useState('0')
   const days = useMemo(() => daysForMonth(month), [month])
@@ -35,6 +35,7 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
       <div><h1>居宅カレンダー</h1><p>{fiscalYear}年度・{year}年{monthNumber}月</p></div>
       <div className="page-header-actions">
         {canImport && <Button icon="upload" variant="primary" onClick={onOpenImport}>Excelを取り込む</Button>}
+        <Button icon="printer" onClick={onOpenPrint}>印刷</Button>
         <Button icon="pdf" onClick={onOpenPdf}>この月をPDF</Button>
         <Button icon="chart" onClick={onOpenAnalysis}>分析を見る</Button>
       </div>
@@ -47,6 +48,12 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
             {canSelectStaff && <option value="">営業所集計（営業員名を含む）</option>}
             {staff.filter((person) => person.active && person.role === 'staff').map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
           </select><Icon name="down" size={15}/></span>
+        </label>
+        <label className="field-group attendance-field">出勤日数
+          <span className="attendance-input-wrap">
+            <input aria-label="出勤日数" type="number" min="0" max="31" inputMode="numeric" value={attendanceDraft} disabled={!selectedStaffId || attendanceSaving} onChange={(event) => setAttendanceDraft(event.target.value)} onBlur={saveAttendance} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} placeholder={selectedStaffId ? '' : '営業員を選択'}/>
+            <small>日</small>
+          </span>
         </label>
         <label className="field-group search-field">事業者を検索
           <span className="search-wrap"><Icon name="search" size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="事業者名・営業員名・コード"/></span>
@@ -67,12 +74,7 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
           <h3>居宅訪問数　月間集約</h3>
           <CalendarMetric label="訪問居宅数" value={summary.visitedEntityCount}/>
           <CalendarMetric label="訪問件数" value={summary.visitTotal}/>
-          <div className="calendar-metric attendance-metric">
-            <span>{selectedStaffId ? '出勤日数' : '出勤日数（全員合計）'}</span>
-            {selectedStaffId
-              ? <label><input aria-label="出勤日数" type="number" min="0" max="31" inputMode="numeric" value={attendanceDraft} disabled={attendanceSaving} onChange={(event) => setAttendanceDraft(event.target.value)} onBlur={saveAttendance} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}/><small>日</small></label>
-              : <strong>{summary.attendanceDays}</strong>}
-          </div>
+          <CalendarMetric label={selectedStaffId ? '出勤日数' : '出勤日数（全員合計）'} value={summary.attendanceDays}/>
           <CalendarMetric label="平均訪問件数／出勤日" value={summary.averageVisitCount ?? '—'} decimal/>
         </section>
       </div>

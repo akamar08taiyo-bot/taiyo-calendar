@@ -70,6 +70,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .select-wrap { position: relative; display: block; }
 .select-wrap select { width: 205px; padding-right: 32px; appearance: none; }
 .select-wrap .icon { position: absolute; right: 10px; top: 12px; pointer-events: none; }
+.attendance-input-wrap { display: flex; align-items: center; gap: 6px; }
+.attendance-input-wrap input { width: 70px; text-align: center; font-weight: 800; }
+.attendance-input-wrap input:disabled { color: #9aa8b3; background: #f4f6f8; }
+.attendance-input-wrap small { color: #64778c; font-size: 11px; font-weight: 800; }
 .search-field { width: min(360px, 34vw); }
 .search-wrap { position: relative; display: block; }
 .search-wrap .icon { position: absolute; left: 11px; top: 11px; color: #8798a8; }
