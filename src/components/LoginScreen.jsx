@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import { Button, Icon } from './Icon'
 
-// ポータル(taiyo-portal)でログイン済みなら、その営業所を初期選択に使う（同一オリジンのlocalStorageを参照するだけ）
+// 業務アプリポータル(taiyo-portal)でログイン時に選んだ営業所名を引き継ぐ。
+// 該当営業所のデータ(Excel取込済み)がこの端末に既にある場合のみ有効。
 function portalSessionOfficeName() {
   try {
     const raw = localStorage.getItem('taiyo_portal_session')
@@ -16,27 +17,19 @@ export function LoginScreen({ offices, onLogin, busy, error }) {
   const portalOfficeName = portalSessionOfficeName()
   const portalOffice = portalOfficeName ? offices.find((office) => office.name === portalOfficeName) : null
   const defaultOffice = portalOffice || offices.find((office) => office.staff.length > 0) || offices[0]
-  const [form, setForm] = useState({ officeId: defaultOffice?.id || '', staffId: defaultOffice?.staff[0]?.id || '', officePassword: '', pin: '' })
-  const selectedOffice = useMemo(() => offices.find((office) => office.id === form.officeId) || offices[0], [offices, form.officeId])
-  function setOffice(officeId) {
-    const office = offices.find((item) => item.id === officeId)
-    setForm((current) => ({ ...current, officeId, staffId: office?.staff[0]?.id || '' }))
-  }
+  const [form, setForm] = useState({ officeId: defaultOffice?.id || '' })
   return <main className="login-screen">
     <section className="login-card" aria-labelledby="login-title">
-      <div className="login-brand"><span className="brand-symbol">れ</span><div><strong>スマートれん太</strong><span>居宅訪問記録・集計</span></div></div>
+      <div className="login-brand"><span className="brand-symbol">居</span><div><strong>居宅カレンダー</strong><span>居宅訪問記録・集計</span></div></div>
       <div className="login-rule"/>
-      <div className="login-heading"><h1 id="login-title">ログイン</h1><p>営業所と営業員を選び、認証情報を入力してください。</p></div>
-      {portalOffice && <div className="login-portal-hint"><Icon name="check" size={16}/>業務アプリポータルの営業所選択（{portalOfficeName}）を引き継ぎました。</div>}
+      <div className="login-heading"><h1 id="login-title">営業所を選択</h1><p>利用する営業所を選んで居宅カレンダーを開きます。</p></div>
       <form className="login-form" onSubmit={(event) => { event.preventDefault(); onLogin(form) }}>
-        <label>営業所<select value={form.officeId} onChange={(event) => setOffice(event.target.value)}>{offices.map((office) => <option key={office.id} value={office.id}>{office.name}</option>)}</select></label>
-        <label>営業員<select value={form.staffId} onChange={(event) => setForm({ ...form, staffId: event.target.value })}>{(selectedOffice?.staff || []).map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}</select></label>
-        <label>営業所パスワード<input type="password" autoComplete="current-password" value={form.officePassword} onChange={(event) => setForm({ ...form, officePassword: event.target.value })}/></label>
-        <label>個人PIN<input type="password" inputMode="numeric" autoComplete="one-time-code" value={form.pin} onChange={(event) => setForm({ ...form, pin: event.target.value })}/></label>
+        <label>営業所<select value={form.officeId} onChange={(event) => setForm({ officeId: event.target.value })}>{offices.map((office) => <option key={office.id} value={office.id}>{office.name}</option>)}</select></label>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <Button type="submit" variant="primary" disabled={busy || !form.staffId}>{busy ? '確認中…' : 'ログイン'}</Button>
+        <Button type="submit" variant="primary" disabled={busy || !form.officeId}>{busy ? '開いています…' : 'この営業所で開く'}</Button>
       </form>
-      <div className="login-note"><Icon name="lock" size={16}/><span>PINはハッシュ化して保存されます。5回失敗すると15分間ロックされます。</span></div>
+      {portalOffice && <div className="login-note"><Icon name="check" size={16}/><span>業務アプリポータルの営業所選択（{portalOfficeName}）を引き継ぎました。</span></div>}
+      <div className="login-note"><Icon name="lock" size={16}/><span>PIN・パスワードは不要です。データはこのブラウザー内に保存されます。</span></div>
     </section>
   </main>
 }

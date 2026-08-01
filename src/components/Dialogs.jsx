@@ -10,20 +10,19 @@ export function Modal({ title, subtitle, children, onClose, wide = false }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="dialog-title"><header className="modal-header"><div><span>{subtitle}</span><h2 id="dialog-title">{title}</h2></div><button className="icon-button" aria-label="閉じる" onClick={onClose}><Icon name="close"/></button></header>{children}</section></div>
 }
 
-export function ImportDialog({ state, onFileSelect, onArchiveMissingChange, onPreview, onConfirm, onClose }) {
+export function ImportDialog({ state, onFileSelect, onPreview, onConfirm, onClose }) {
   return <Modal title="Excelデータを取り込む" subtitle="内容確認後に資料を更新" onClose={onClose}>
     <div className="modal-body">
-      <div className="info-box"><Icon name="lock"/><span>選択したExcelを検証し、確認後にカレンダーとPDF資料へ反映します。既存の訪問履歴は削除・上書きしません。</span></div>
+      <div className="info-box"><Icon name="lock"/><span>前月までの記録は保持されます。同じ営業所・同じ月の再取込では、その月の内容だけを最新版へ置き換えます。</span></div>
       {!state.preview && <label className={`excel-dropzone ${state.file ? 'has-file' : ''}`}>
-        <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => onFileSelect(event.target.files?.[0])}/>
+        <input type="file" accept=".xls,.xlsx,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" onChange={(event) => onFileSelect(event.target.files?.[0])}/>
         <Icon name="upload" size={28}/>
         <strong>{state.file ? state.file.name : 'Excelファイルを選択'}</strong>
-        <span>{state.file ? `${(state.file.size / 1024).toLocaleString('ja-JP', { maximumFractionDigits: 0 })} KB` : '.xlsx形式・25MB以下'}</span>
+        <span>{state.file ? `${(state.file.size / 1024).toLocaleString('ja-JP', { maximumFractionDigits: 0 })} KB` : '.xls／.xlsx／.xlsm・25MB以下'}</span>
       </label>}
-      {!state.preview && <label className="archive-option"><input type="checkbox" checked={state.archiveMissing} onChange={(event) => onArchiveMissingChange(event.target.checked)}/><span><strong>このExcelを営業所の全事業者一覧として扱う</strong><small>オンの場合のみ、ファイルにない事業者を非表示にします。訪問履歴など一部データの取込ではオフのままにしてください。</small></span></label>}
       {state.loading && <div className="dialog-loading compact"><span className="spinner"/><strong>Excelの内容を検証しています…</strong></div>}
       {state.error && <div className="form-error" role="alert">{state.error}</div>}
-      {state.preview && <><div className="file-row"><Icon name="upload"/><div><strong>{state.preview.file?.name || '公式Excel'}</strong><span>シート: {state.preview.worksheetName}</span></div><i>検証済み</i></div><div className="diff-grid">
+      {state.preview && <><div className="file-row"><Icon name="upload"/><div><strong>{state.preview.file?.name || '公式Excel'}</strong><span>{state.preview.officeNames?.join('、')}・{state.preview.months?.join('、')}</span></div><i>検証済み</i></div><div className="diff-grid">
         <Diff label="追加" value={state.preview.diff.added}/><Diff label="更新" value={state.preview.diff.updated}/><Diff label="非表示" value={state.preview.diff.archived}/><Diff label="訪問行" value={state.preview.diff.visitRows}/>
       </div>{state.preview.diff.missing > 0 && !state.preview.diff.archiveMissing && <div className="info-box import-retained"><Icon name="info"/><span>ファイルにない既存事業者 {state.preview.diff.missing}件は保持されます。</span></div>}</>}
     </div>
@@ -35,8 +34,8 @@ function Diff({ label, value }) { return <div><span>{label}</span><strong>{value
 
 export function PdfDialog({ month, staffName, loading, onDownload, onClose }) {
   const [year, monthNumber] = month.split('-')
-  return <Modal title="居宅カレンダーPDF" subtitle="A4横向き・日本語フォント埋込" onClose={onClose}>
-    <div className="modal-body"><div className="pdf-preview"><div><strong>居宅カレンダー</strong><span>{year}年{Number(monthNumber)}月</span></div><p>出力範囲：{staffName || '営業所集計'}</p><div className="paper-lines">{Array.from({ length: 6 }, (_, index) => <i key={index}/>)}</div></div><div className="info-box"><Icon name="info"/><span>日付列は16日ずつに分割し、各ページに見出しを再表示します。権限外の名称は出力されません。</span></div></div>
+  return <Modal title="居宅カレンダーPDF" subtitle="A4横向き・31日表示" onClose={onClose}>
+    <div className="modal-body"><div className="pdf-preview"><div><strong>居宅カレンダー</strong><span>{year}年{Number(monthNumber)}月</span></div><p>出力範囲：{staffName || '営業所全体'}</p><div className="paper-lines">{Array.from({ length: 6 }, (_, index) => <i key={index}/>)}</div></div><div className="info-box"><Icon name="info"/><span>絞り込み条件を反映し、個人は居宅カレンダー、営業所全体は居宅名を含まない営業員別集計をA4横向きPDFで保存します。</span></div></div>
     <footer className="modal-actions"><Button onClick={onClose}>閉じる</Button><Button variant="primary" icon="pdf" disabled={loading} onClick={onDownload}>{loading ? '生成中…' : 'PDFを保存'}</Button></footer>
   </Modal>
 }
@@ -62,15 +61,12 @@ export function HiddenDialog({ providers, loading, canDelete, onRestore, onDelet
   </Modal>
 }
 
-export function SettingsDialog({ settings, staff, auditLogs, loading, onSave, onSetPin, onClose }) {
+export function SettingsDialog({ settings, auditLogs, loading, onSave, onClose }) {
   const [form, setForm] = useState({ retentionYears: settings?.retentionYears || 5 })
-  const [pinTarget, setPinTarget] = useState(staff[0]?.id || '')
-  const [pin, setPin] = useState('')
   useEffect(() => setForm({ retentionYears: settings?.retentionYears || 5 }), [settings])
   return <Modal title="システム設定" subtitle="system_admin のみ" onClose={onClose} wide>
     <div className="modal-body settings-grid">
       <section><h3>訪問記録の保持期間</h3><label>保持年数<select value={form.retentionYears} onChange={(event) => setForm({ ...form, retentionYears: Number(event.target.value) })}>{[5,6,7,8,9,10].map((year) => <option key={year} value={year}>{year}年</option>)}</select></label><div className="info-box"><Icon name="info"/><span>Excel取込はカレンダー画面から実行します。最低5年間の訪問記録を保持します。</span></div><Button variant="primary" disabled={loading} onClick={() => onSave(form)}>設定を保存</Button></section>
-      <section><h3>営業員PINの初期化</h3><label>営業員<select value={pinTarget} onChange={(event) => setPinTarget(event.target.value)}>{staff.map((person) => <option key={person.id} value={person.id}>{person.name}{person.active ? '' : '（未有効化）'}</option>)}</select></label><label>新しいPIN<input type="password" inputMode="numeric" value={pin} onChange={(event) => setPin(event.target.value)}/></label><Button disabled={!/^\d{4,12}$/.test(pin) || loading} onClick={async () => { await onSetPin(pinTarget, pin); setPin('') }}>PINを更新</Button></section>
       <section className="audit-section"><h3>監査記録（最新200件）</h3><div className="audit-list">{auditLogs.map((log) => <div key={log.id}><span>{new Date(log.createdAt).toLocaleString('ja-JP')}</span><strong>{log.actorName}</strong><code>{log.action}</code></div>)}</div></section>
     </div><footer className="modal-actions"><Button onClick={onClose}>閉じる</Button></footer>
   </Modal>
