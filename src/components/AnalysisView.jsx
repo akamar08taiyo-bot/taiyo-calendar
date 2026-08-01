@@ -16,15 +16,23 @@ function salesInsights(analytics) {
   const movement = analytics?.movement || {}
   const latest = movement.latestMonth
   const previous = movement.previousMonth
+  // 今年度月平均は実績入力済み月数で割った値（summary.monthlyAverage）を使う。
+  const yearAverage = summary.monthlyAverage
+  const vsYearAverageText = (month) => {
+    if (yearAverage == null || !month) return ''
+    const diff = decimal(month.visitTotal - yearAverage)
+    const sign = month.visitTotal - yearAverage > 0 ? '+' : ''
+    return `／年度平均 ${decimal(yearAverage)}回に対して ${sign}${diff}回`
+  }
   const momentum = !latest
     ? { tone: 'neutral', title: '直近の動き', value: '—', description: '対象年度の訪問記録がありません。', action: 'Excel取込月と対象年度を確認してください。' }
     : !previous
-      ? { tone: 'neutral', title: '直近の動き', value: `${latest.visitTotal}回`, description: `${latest.label}が最初の記録月です。`, action: '2か月目以降に前月比を確認できます。' }
+      ? { tone: 'neutral', title: '直近の動き', value: `${latest.visitTotal}回`, description: `${latest.label}が最初の記録月です。${vsYearAverageText(latest)}`, action: '2か月目以降に前月比を確認できます。' }
       : {
           tone: movement.change > 0 ? 'positive' : movement.change < 0 ? 'attention' : 'neutral',
           title: '直近月の前月差',
           value: `${movement.change > 0 ? '+' : ''}${movement.change}回`,
-          description: `${previous.label} ${previous.visitTotal}回 → ${latest.label} ${latest.visitTotal}回${movement.changeRate == null ? '' : `（${movement.changeRate > 0 ? '+' : ''}${decimal(movement.changeRate)}%）`}`,
+          description: `${previous.label} ${previous.visitTotal}回 → ${latest.label} ${latest.visitTotal}回${movement.changeRate == null ? '' : `（${movement.changeRate > 0 ? '+' : ''}${decimal(movement.changeRate)}%）`}${vsYearAverageText(latest)}`,
           action: movement.change < 0 ? '出勤日数と、訪問が減った取引先・営業員を確認してください。' : movement.change > 0 ? '増加が新規接点か既存先の頻度上昇か、ランキングで確認してください。' : '訪問量は横ばいです。訪問先の入れ替わりを確認してください。',
         }
 
@@ -68,7 +76,7 @@ export function AnalysisView({ fiscalYear, setFiscalYear, analytics, loading, sc
     <section className="kpi-grid sales-kpi-grid">
       <Kpi label="年度訪問件数" value={summary.visitTotal ?? 0} unit="回"/>
       <Kpi label="年度訪問先数" value={summary.uniqueProviderCount ?? 0} unit="件"/>
-      <Kpi label="月平均（12か月）" value={decimal(summary.monthlyAverage ?? 0)} unit="回"/>
+      <Kpi label="月平均（入力済み月数）" value={decimal(summary.monthlyAverage ?? 0)} unit="回"/>
       <Kpi label="出勤日1日あたり" value={summary.visitsPerAttendanceDay == null && summary.attendanceDays > 0 ? '入力途中' : decimal(summary.visitsPerAttendanceDay)} unit={summary.visitsPerAttendanceDay == null ? '' : '回'} accent/>
     </section>
 

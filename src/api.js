@@ -505,6 +505,9 @@ export const api = {
       }
     })
     const monthKeys = new Set(months.map((item) => item.month))
+    // 今年度の月平均は常に12ではなく、実績が入力済みの月数で割る（例: 6,7,8月のみ入力済みなら3で割る）。
+    const activeMonths = months.filter((item) => item.visitTotal > 0)
+    const enteredMonthCount = activeMonths.length || 1
     const comparisonMonthKey = monthKeys.has(comparisonMonth)
       ? comparisonMonth
       : [...months].reverse().find((item) => item.visitTotal > 0)?.month || months[0].month
@@ -527,7 +530,7 @@ export const api = {
         if (!date.startsWith(comparisonMonthKey) || !scopedStaffIds.includes(providerStaffId(provider, comparisonMonthKey))) return sum
         return sum + visit.count
       }, 0)
-      const fiscalMonthlyAverage = round1(visitTotal / 12)
+      const fiscalMonthlyAverage = round1(visitTotal / enteredMonthCount)
       return [{
         id: provider.id,
         name: provider.name,
@@ -546,7 +549,6 @@ export const api = {
     const attendanceDays = months.reduce((sum, item) => sum + item.attendanceDays, 0)
     const attendanceEnteredStaffCount = scopedStaffIds.filter((id) => months.some((item) => Number(data.attendanceDays[`${user.officeId}:${id}:${item.month}`]) > 0)).length
     const attendanceComplete = scopedStaffIds.length > 0 && attendanceEnteredStaffCount === scopedStaffIds.length
-    const activeMonths = months.filter((item) => item.visitTotal > 0)
     const latestRecordedIndex = months.reduce((latest, item, index) => item.visitTotal > 0 ? index : latest, -1)
     const latestMonth = latestRecordedIndex >= 0 ? months[latestRecordedIndex] : null
     const previousMonth = latestRecordedIndex > 0 ? months[latestRecordedIndex - 1] : null
@@ -572,7 +574,7 @@ export const api = {
         activeMonths: staffMonths.filter((item) => item.summary.visitTotal > 0).length,
         attendanceDays: personAttendance,
         visitsPerAttendanceDay: personAttendance ? round1(personVisitTotal / personAttendance) : null,
-        monthlyAverage: round1(personVisitTotal / 12),
+        monthlyAverage: round1(personVisitTotal / enteredMonthCount),
         share: visitTotal ? round1(personVisitTotal / visitTotal * 100) : 0,
       }
     }).sort((left, right) => right.visitTotal - left.visitTotal)
@@ -590,7 +592,7 @@ export const api = {
         attendanceTargetStaffCount: scopedStaffIds.length,
         attendanceComplete,
         staffAverage: scopedStaffIds.length ? round1(visitTotal / scopedStaffIds.length) : null,
-        monthlyAverage: round1(visitTotal / 12),
+        monthlyAverage: round1(visitTotal / enteredMonthCount),
         activeMonthAverage: activeMonths.length ? round1(visitTotal / activeMonths.length) : null,
         visitsPerAttendanceDay: attendanceDays && attendanceComplete ? round1(visitTotal / attendanceDays) : null,
         concentrationTopFive: visitTotal ? round1(topFiveVisits / visitTotal * 100) : null,

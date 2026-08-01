@@ -230,11 +230,11 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .pdf-export-sandbox { position: fixed; top: 0; left: -20000px; z-index: -1; width: 1120px; background: #fff; pointer-events: none; }
 .pdf-export-document { width: 1120px !important; min-width: 1120px !important; padding: 18px !important; overflow: visible !important; box-shadow: none !important; }
 
-.analysis-scope { margin-bottom: 14px; padding: 12px 15px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: space-between; background: #fff; }
+.analysis-scope { margin-bottom: 14px; padding: 12px 15px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 40px; background: #fff; }
 .analysis-scope > div { display: flex; align-items: center; gap: 9px; }
 .analysis-scope strong { color: var(--navy); font-size: 15px; }
 .analysis-scope span { color: #52667a; font-size: 12px; }
-.analysis-scope-meta { justify-content: flex-end; }
+.analysis-scope-meta { justify-content: center; }
 .analysis-scope-meta label { display: flex; align-items: center; gap: 8px; color: #3c4d5f; font-size: 13px; font-weight: 800; }
 .analysis-scope-meta .select-wrap select { width: 240px; height: 44px; padding: 0 34px 0 13px; border: 1px solid var(--line-strong); border-radius: 7px; outline: 0; color: var(--navy); background: #fff; font-size: 15px; font-weight: 800; appearance: none; }
 .analysis-scope-meta .select-wrap select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(7,139,142,.11); }
@@ -816,6 +816,7 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 
 @page { size: A4 landscape; margin: 7mm; }
 @media print {
+  * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
   html, body, #root { width: 100%; min-width: 0; margin: 0; background: #fff !important; }
   .sidebar, .topbar, .sidebar-scrim, .print-page-header, .print-controls, .print-preview-heading, .print-help, .toast, .modal-backdrop { display: none !important; }
   .app-shell, .main-content, .page-content, .print-layout, .print-preview-panel { width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; display: block !important; overflow: visible !important; border: 0 !important; background: #fff !important; box-shadow: none !important; }
