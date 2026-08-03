@@ -15,10 +15,10 @@ export function ImportDialog({ state, onFileSelect, onPreview, onConfirm, onClos
     <div className="modal-body">
       <div className="info-box"><Icon name="lock"/><span>前月までの記録は保持されます。同じ営業所・同じ月の再取込では、その月の内容だけを最新版へ置き換えます。</span></div>
       {!state.preview && <label className={`excel-dropzone ${state.file ? 'has-file' : ''}`}>
-        <input type="file" accept=".xls,.xlsx,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" onChange={(event) => onFileSelect(event.target.files?.[0])}/>
+        <input type="file" accept=".xls,.xlsx,.xlsm,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,text/csv" onChange={(event) => onFileSelect(event.target.files?.[0])}/>
         <Icon name="upload" size={28}/>
         <strong>{state.file ? state.file.name : 'Excelファイルを選択'}</strong>
-        <span>{state.file ? `${(state.file.size / 1024).toLocaleString('ja-JP', { maximumFractionDigits: 0 })} KB` : '.xls／.xlsx／.xlsm・25MB以下'}</span>
+        <span>{state.file ? `${(state.file.size / 1024).toLocaleString('ja-JP', { maximumFractionDigits: 0 })} KB` : '.xls／.xlsx／.xlsm／.csv・25MB以下'}</span>
       </label>}
       {state.loading && <div className="dialog-loading compact"><span className="spinner"/><strong>Excelの内容を検証しています…</strong></div>}
       {state.error && <div className="form-error" role="alert">{state.error}</div>}

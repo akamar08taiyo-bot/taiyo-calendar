@@ -251,8 +251,8 @@ export default function App() {
   function openImport() { setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' }); setDialog('import') }
   function selectImportFile(file) {
     if (!file) return
-    if (!/\.(xls|xlsx|xlsm)$/i.test(file.name)) {
-      setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '取り込めるファイルは .xls、.xlsx、.xlsm 形式です。' })
+    if (!/\.(xls|xlsx|xlsm|csv)$/i.test(file.name)) {
+      setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '取り込めるファイルは .xls、.xlsx、.xlsm、.csv 形式です。' })
       return
     }
     if (file.size > 25 * 1024 * 1024) {
