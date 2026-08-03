@@ -154,7 +154,7 @@ function parseVisitHistorySheet(sheet) {
   return [...grouped.values()]
 }
 
-function splitTabDelimitedLine(line) {
+function splitDelimitedLine(line, delimiter) {
   const cells = []
   let value = ''
   let quoted = false
@@ -163,7 +163,7 @@ function splitTabDelimitedLine(line) {
     if (character === '"') {
       if (quoted && line[index + 1] === '"') { value += '"'; index += 1 }
       else quoted = !quoted
-    } else if (character === '\t' && !quoted) {
+    } else if (character === delimiter && !quoted) {
       cells.push(value)
       value = ''
     } else value += character
@@ -172,7 +172,7 @@ function splitTabDelimitedLine(line) {
   return cells
 }
 
-function decodeTabDelimitedXls(buffer) {
+function decodeDelimitedText(buffer, delimiter) {
   const bytes = new Uint8Array(buffer)
   const oleHeader = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]
   if (oleHeader.every((value, index) => bytes[index] === value)) return null
@@ -180,17 +180,21 @@ function decodeTabDelimitedXls(buffer) {
     try {
       const text = new TextDecoder(encoding).decode(bytes).replace(/^\uFEFF/, '')
       const header = text.slice(0, 4000)
-      if (header.includes('\t') && /(事業者名|居宅名)/.test(header) && /(担当名|担当者名|営業員名)/.test(header)) return text
+      if (header.includes(delimiter) && /(事業者名|居宅名)/.test(header) && /(担当名|担当者名|営業員名)/.test(header)) return text
     } catch { /* try the next supported encoding */ }
   }
   return null
 }
 
-function parseTabDelimitedVisitHistory(text) {
+const MAX_VISIT_HISTORY_ROWS = 50000
+const MAX_VISIT_HISTORY_COLUMNS = 200
+
+function parseTabDelimitedVisitHistory(text, delimiter = '\t') {
   const lines = text.replace(/\u0000/g, '').split(/\r?\n/).filter((line) => line.trim())
-  if (!lines.length || lines.length > 2001) throw new Error('訪問履歴の行数は2000行以下にしてください。')
-  const table = lines.map(splitTabDelimitedLine)
-  if (table.some((row) => row.length > 100)) throw new Error('訪問履歴の列数は100列以下にしてください。')
+  if (!lines.length) throw new Error('読み込めるデータがありませんでした。')
+  if (lines.length > MAX_VISIT_HISTORY_ROWS) throw new Error(`訪問履歴の行数は${MAX_VISIT_HISTORY_ROWS}行以下にしてください。`)
+  const table = lines.map((line) => splitDelimitedLine(line, delimiter))
+  if (table.some((row) => row.length > MAX_VISIT_HISTORY_COLUMNS)) throw new Error(`訪問履歴の列数は${MAX_VISIT_HISTORY_COLUMNS}列以下にしてください。`)
   const headers = table[0].map(normalizedHeader)
   const findIndex = (aliases) => {
     const normalizedAliases = aliases.map(normalizedHeader)
@@ -233,13 +237,20 @@ function parseTabDelimitedVisitHistory(text) {
 }
 
 export async function parseCalendarWorkbook(file) {
-  if (!file || !/\.(xls|xlsx|xlsm)$/i.test(file.name)) throw new Error('取り込めるのは .xls、.xlsx、.xlsm 形式です。')
+  if (!file || !/\.(xls|xlsx|xlsm|csv)$/i.test(file.name)) throw new Error('取り込めるのは .xls、.xlsx、.xlsm、.csv 形式です。')
   if (file.size > 25 * 1024 * 1024) throw new Error('Excelファイルは25MB以下にしてください。')
   const buffer = await file.arrayBuffer()
+  if (/\.csv$/i.test(file.name)) {
+    const text = decodeDelimitedText(buffer, ',')
+    if (!text) throw new Error('CSVファイルを読み取れませんでした。文字コード（UTF-8またはShift-JIS）と「事業者名・担当名・日報日付」の列名をご確認ください。')
+    const parsed = parseTabDelimitedVisitHistory(text, ',')
+    if (!parsed.length) throw new Error('居宅データを読み取れませんでした。「事業者名・担当名・日報日付」の列を確認してください。')
+    return parsed
+  }
   if (/\.xls$/i.test(file.name)) {
-    const text = decodeTabDelimitedXls(buffer)
+    const text = decodeDelimitedText(buffer, '\t')
     if (!text) throw new Error('この .xls は旧式Excel形式です。Excelの「名前を付けて保存」で .xlsx に変換してください。')
-    const parsed = parseTabDelimitedVisitHistory(text)
+    const parsed = parseTabDelimitedVisitHistory(text, '\t')
     if (!parsed.length) throw new Error('居宅データを読み取れませんでした。「事業者名・担当名・日報日付」の列を確認してください。')
     return parsed
   }
@@ -251,7 +262,7 @@ export async function parseCalendarWorkbook(file) {
 
   const parsed = []
   for (const sheet of workbook.worksheets) {
-    if (sheet.rowCount > 2000 || sheet.columnCount > 100) throw new Error(`${sheet.name}シートの行数または列数が上限を超えています。`)
+    if (sheet.rowCount > MAX_VISIT_HISTORY_ROWS || sheet.columnCount > MAX_VISIT_HISTORY_COLUMNS) throw new Error(`${sheet.name}シートの行数または列数が上限を超えています。`)
     const calendarRows = parseCalendarSheet(sheet)
     parsed.push(...(calendarRows.length ? calendarRows : parseVisitHistorySheet(sheet)))
   }
