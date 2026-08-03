@@ -103,6 +103,27 @@ export function AnalysisView({ fiscalYear, setFiscalYear, analytics, loading, sc
       </section>
     )}
 
+    {analytics?.kindMonthly?.some((item) => item.total > 0) && (
+      <section className="staff-panel"><div className="panel-heading"><div><h2>包括・居宅の月別訪問</h2><span>月ごとの訪問件数と、包括が占める割合の推移</span></div><span className="chart-unit">単位：回</span></div>
+        <div className="kind-monthly-list">
+          {analytics.kindMonthly.map((item) => (
+            <div key={item.month} className={item.total === 0 ? 'kind-monthly-row is-empty' : 'kind-monthly-row'}>
+              <span className="kind-monthly-label">{item.label}</span>
+              <div className="kind-monthly-bar" role="img" aria-label={`${item.label} 包括${item.houkatsu}回・居宅${item.kyotaku}回`}>
+                {item.total > 0 && <>
+                  <i className="kind-bar-houkatsu" style={{ width: `${item.houkatsu / item.total * 100}%` }}/>
+                  <i className="kind-bar-kyotaku" style={{ width: `${item.kyotaku / item.total * 100}%` }}/>
+                </>}
+              </div>
+              <span className="kind-monthly-value kind-tag-houkatsu-text">包括 {item.houkatsu}</span>
+              <span className="kind-monthly-value kind-tag-kyotaku-text">居宅 {item.kyotaku}</span>
+              <span className="kind-monthly-share">{item.houkatsuShare == null ? '—' : `包括 ${decimal(item.houkatsuShare)}%`}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
     {analytics?.providerComparison?.length > 0 && (
       <section className="staff-panel provider-comparison-panel">
         <div className="panel-heading"><div><h2>{comparisonLabel}の訪問先別 増減</h2><span>今年度の月平均に対して、増えている訪問先・減っている訪問先を確認</span></div><span className="chart-unit">対象：{scopeLabel}</span></div>

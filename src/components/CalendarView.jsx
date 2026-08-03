@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { daysForMonth, visitValueLabel } from '../calendar-utils'
 import { Button, Icon } from './Icon'
 
-export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onOpenHidden, onOpenImport, onOpenPdf, onOpenPrint, onOpenAnalysis, canImport }) {
+export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onChangeKind, onOpenHidden, onOpenImport, onOpenPdf, onOpenPrint, onOpenAnalysis, canImport }) {
   const [selected, setSelected] = useState(null)
   const [attendanceDraft, setAttendanceDraft] = useState('0')
   const days = useMemo(() => daysForMonth(month), [month])
@@ -90,7 +90,17 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
             {!loading && !providers.length && <tr><td colSpan={days.length + 4} className="empty-row"><div className="empty-state"><Icon name="search" size={25}/><strong>対象の事業者がありません</strong><span>検索条件または営業員を確認してください。</span></div></td></tr>}
             {!loading && providers.map((provider, providerIndex) => <tr key={provider.id}>
               <th className="index-col row-index sticky-left">{providerIndex + 1}</th>
-              <th className="provider-col provider-name sticky-left"><span title={provider.name}>{provider.name}</span><div className="row-actions"><button onClick={() => onHide(provider)}>非表示</button></div></th>
+              <th className="provider-col provider-name sticky-left">
+                <span className="provider-name-line">
+                  <button type="button" className={`kind-tag kind-tag-${provider.kind} kind-tag-button`}
+                    title={`${provider.kind === 'houkatsu' ? '包括' : '居宅'}として集計中。クリックで${provider.kind === 'houkatsu' ? '居宅' : '包括'}に変更`}
+                    onClick={() => onChangeKind(provider, provider.kind === 'houkatsu' ? 'kyotaku' : 'houkatsu')}>
+                    {provider.kind === 'houkatsu' ? '包括' : '居宅'}
+                  </button>
+                  <span title={provider.name}>{provider.name}</span>
+                </span>
+                <div className="row-actions"><button onClick={() => onHide(provider)}>非表示</button></div>
+              </th>
               <td className="staff-col sticky-left">{provider.staffName}</td>
               {days.map(({ day, weekday }) => {
                 const visit = provider.visits[String(day)] || { count: 0, version: 0 }

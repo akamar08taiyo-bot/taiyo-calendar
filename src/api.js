@@ -42,6 +42,13 @@ export function classifyProviderKind(name) {
 
 export const PROVIDER_KIND_LABEL = { houkatsu: '包括', kyotaku: '居宅' }
 
+// 名称からの自動判定より、利用者が手動で設定した種別（kindOverride）を常に優先する。
+export function providerKindOf(provider) {
+  const override = provider?.kindOverride
+  if (override === 'houkatsu' || override === 'kyotaku') return override
+  return classifyProviderKind(provider?.name)
+}
+
 function seed() {
   const offices = Array.from({ length: 19 }, (_, index) => ({
     id: `office-${String(index + 1).padStart(2, '0')}`,
@@ -418,7 +425,7 @@ function providerView(provider, data, month) {
   for (const [date, value] of Object.entries(provider.visits || {})) if (date.startsWith(month)) visits[String(Number(date.slice(-2)))] = value
   const visitTotal = Object.values(visits).reduce((sum, item) => sum + item.count, 0)
   const staffId = providerStaffId(provider, month)
-  return { ...provider, staffId, externalCode: provider.code, homeId: null, staffName: data.staff.find((row) => row.id === staffId)?.name || '', sourceActive: true, visits, visitTotal, visitedEntityCount: visitTotal > 0 ? 1 : 0, visitRate: provider.totalHomes ? (visitTotal > 0 ? 100 : 0) : null }
+  return { ...provider, staffId, kind: providerKindOf(provider), externalCode: provider.code, homeId: null, staffName: data.staff.find((row) => row.id === staffId)?.name || '', sourceActive: true, visits, visitTotal, visitedEntityCount: visitTotal > 0 ? 1 : 0, visitRate: provider.totalHomes ? (visitTotal > 0 ? 100 : 0) : null }
 }
 function calendarResult(data, month, staffId, includeHidden) {
   const user = currentStaff(data)
@@ -511,7 +518,18 @@ export const api = {
     provider.visits[date] = { count: Math.max(0, Number(count) || 0), version: current.version + 1, updatedAt: now() }; save(data)
     return provider.visits[date]
   },
-  async updateProvider(providerId, body) { const data = load(); const row = data.providers.find((item) => item.id === providerId); if ('totalHomes' in body) row.totalHomes = Math.max(0, Math.trunc(body.totalHomes || 0)); if ('hidden' in body) row.hiddenAt = body.hidden ? now() : null; save(data); return row },
+  async updateProvider(providerId, body) {
+    const data = load()
+    const row = data.providers.find((item) => item.id === providerId)
+    if ('totalHomes' in body) row.totalHomes = Math.max(0, Math.trunc(body.totalHomes || 0))
+    if ('hidden' in body) row.hiddenAt = body.hidden ? now() : null
+    // kind: 'houkatsu' | 'kyotaku' で手動設定、null で名称からの自動判定に戻す
+    if ('kind' in body) {
+      row.kindOverride = (body.kind === 'houkatsu' || body.kind === 'kyotaku') ? body.kind : null
+    }
+    save(data)
+    return row
+  },
   async deleteChallenge(providerId) { return { challengeId: providerId, confirmationText: '完全削除', expiresAt: now() } },
   async deleteProvider(providerId) { const data = load(); data.providers = data.providers.filter((row) => row.id !== providerId); save(data) },
   async importPreview(file, archiveMissing = false) {
@@ -569,6 +587,7 @@ export const api = {
       if (provider.officeId !== user.officeId || provider.hiddenAt) return []
       let visitTotal = 0
       const activeMonths = new Set()
+      const monthlyVisits = new Map()
       let latestMonth = ''
       let latestStaffId = provider.staffId
       for (const [date, visit] of Object.entries(provider.visits || {})) {
@@ -576,6 +595,7 @@ export const api = {
         const assignedStaffId = providerStaffId(provider, month)
         if (!monthKeys.has(month) || !scopedStaffIds.includes(assignedStaffId)) continue
         visitTotal += visit.count
+        monthlyVisits.set(month, (monthlyVisits.get(month) || 0) + visit.count)
         if (visit.count > 0) activeMonths.add(month)
         if (month > latestMonth) { latestMonth = month; latestStaffId = assignedStaffId }
       }
@@ -588,9 +608,10 @@ export const api = {
       return [{
         id: provider.id,
         name: provider.name,
-        kind: classifyProviderKind(provider.name),
+        kind: providerKindOf(provider),
         staffName: data.staff.find((person) => person.id === latestStaffId)?.name || '',
         visitTotal,
+        monthlyVisits,
         monthsVisited: activeMonths.size,
         averagePerActiveMonth: round1(visitTotal / activeMonths.size),
         fiscalMonthlyAverage,
@@ -612,6 +633,25 @@ export const api = {
         comparisonVisitTotal: items.reduce((sum, item) => sum + item.comparisonVisitTotal, 0),
         increasedCount: items.filter((item) => item.comparisonDifference > 0).length,
         decreasedCount: items.filter((item) => item.comparisonDifference < 0).length,
+      }
+    })
+
+    // 包括／居宅の月別訪問件数（構成比の推移を確認するための内訳）
+    const kindMonthly = months.map((item) => {
+      const houkatsu = providerPerformance
+        .filter((provider) => provider.kind === 'houkatsu')
+        .reduce((sum, provider) => sum + (provider.monthlyVisits.get(item.month) || 0), 0)
+      const kyotaku = providerPerformance
+        .filter((provider) => provider.kind === 'kyotaku')
+        .reduce((sum, provider) => sum + (provider.monthlyVisits.get(item.month) || 0), 0)
+      const total = houkatsu + kyotaku
+      return {
+        month: item.month,
+        label: item.label,
+        houkatsu,
+        kyotaku,
+        total,
+        houkatsuShare: total ? round1(houkatsu / total * 100) : null,
       }
     })
 
@@ -679,6 +719,7 @@ export const api = {
       frequencyBands,
       comparisonMonth: comparisonMonthKey,
       kindSummary,
+      kindMonthly,
       // 月平均との差が大きい順（増加が上・減少が下）に並べ、増減している訪問先をひと目で分かるようにする
       providerComparison: [...providerPerformance].sort((left, right) => right.comparisonDifference - left.comparisonDifference || right.visitTotal - left.visitTotal || left.name.localeCompare(right.name, 'ja')),
       providerRanking: providerPerformance.slice(0, 10),

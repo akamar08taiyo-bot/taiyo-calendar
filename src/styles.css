@@ -287,6 +287,25 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .kind-tag { display: inline-flex; min-width: 38px; padding: 3px 8px; border-radius: 999px; justify-content: center; font-size: 11px; font-weight: 900; }
 .kind-tag-houkatsu { color: #1a5aa7; background: #e6f0fb; }
 .kind-tag-kyotaku { color: #6b4ea8; background: #efeafb; }
+.kind-tag-button { border: 0; cursor: pointer; font-family: inherit; transition: filter .15s; }
+.kind-tag-button:hover { filter: brightness(.94); }
+.provider-name-line { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.provider-name-line > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kind-monthly-list { margin-top: 14px; display: grid; gap: 7px; }
+.kind-monthly-row { display: grid; grid-template-columns: 46px 1fr 76px 76px 92px; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; }
+.kind-monthly-row.is-empty { opacity: .5; }
+.kind-monthly-label { color: #3d5064; }
+.kind-monthly-bar { height: 12px; display: flex; overflow: hidden; border-radius: 6px; background: #eaf2f7; }
+.kind-bar-houkatsu { display: block; height: 100%; background: #2f7fd6; }
+.kind-bar-kyotaku { display: block; height: 100%; background: #8b6fd0; }
+.kind-monthly-value { text-align: right; }
+.kind-tag-houkatsu-text { color: #1a5aa7; }
+.kind-tag-kyotaku-text { color: #6b4ea8; }
+.kind-monthly-share { color: #3d5064; text-align: right; }
+@media (max-width: 720px) {
+  .kind-monthly-row { grid-template-columns: 40px 1fr; grid-auto-rows: auto; }
+  .kind-monthly-value, .kind-monthly-share { grid-column: 2; text-align: left; font-size: 11px; }
+}
 .analysis-definition { margin-top: 13px; padding: 11px 3px; display: flex; align-items: flex-start; gap: 7px; color: #52667a; font-size: 11px; line-height: 1.5; }
 .sales-summary-panel { margin-top: 13px; padding: 18px; border: 1px solid #cfe8f7; border-radius: 16px; background: linear-gradient(135deg,#fff,#f6fcff); box-shadow: 0 7px 22px rgba(14,165,233,.06); }
 .sales-insight-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
