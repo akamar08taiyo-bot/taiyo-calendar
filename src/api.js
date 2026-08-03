@@ -3,6 +3,45 @@ const SESSION_KEY = 'kyotaku-calendar-offline-session-v2'
 const now = () => new Date().toISOString()
 const monthNow = () => now().slice(0, 7)
 
+/* ============================================================
+   訪問先の種別判定（地域包括支援センター / 居宅介護支援事業所）
+   自治体ごとに名称が大きく異なるため、実在する呼称を幅広く登録している。
+   1つでも該当すれば「包括」とみなし、取りこぼして居宅側に混ざることを防ぐ。
+============================================================ */
+const HOUKATSU_KEYWORDS = [
+  // 「包括」を含む表記（地域包括支援センター／包括支援センター／地域包括センター等を一括で拾う）
+  '包括',
+  // 高齢者相談系
+  '高齢者相談センター', '高齢者相談支援センター', '高齢者総合相談センター', '高齢者支援センター',
+  '高齢者サポートセンター', '高齢者あんしんセンター', '高齢者あんしん相談センター',
+  '高齢者なんでも相談センター', '高齢者なんでも相談室',
+  '高齢者相談窓口', '高齢者総合相談窓口', '高齢者の総合相談窓口', '総合相談窓口',
+  'おとしより相談センター', '熟年相談室',
+  // 愛称・自治体独自名称
+  'ささえりあ', 'シニアサポートセンター', '高齢サポート',
+  'あんしんセンター', 'あんしんケアセンター', 'あんしんすこやかセンター', 'あんしん長寿相談所',
+  '長寿サポートセンター', '長寿あんしん相談センター', '長寿いきいきサポート',
+  'いきいき支援センター', 'いきいき相談センター', 'いきいきセンターふくおか',
+  'すこやかセンター', 'ケア24', 'まるけあ', '愛の手',
+  '地域ケアプラザ', '地域包括ケアセンター',
+]
+
+// 表記ゆれ（全角/半角・空白・記号）を吸収してから判定する
+function normalizeProviderName(name) {
+  return String(name || '').normalize('NFKC').replace(/[\s　・･]/g, '')
+}
+
+export function classifyProviderKind(name) {
+  const normalized = normalizeProviderName(name)
+  if (!normalized) return 'kyotaku'
+  for (const keyword of HOUKATSU_KEYWORDS) {
+    if (normalized.includes(normalizeProviderName(keyword))) return 'houkatsu'
+  }
+  return 'kyotaku'
+}
+
+export const PROVIDER_KIND_LABEL = { houkatsu: '包括', kyotaku: '居宅' }
+
 function seed() {
   const offices = Array.from({ length: 19 }, (_, index) => ({
     id: `office-${String(index + 1).padStart(2, '0')}`,
@@ -519,9 +558,13 @@ export const api = {
     // 今年度の月平均は常に12ではなく、実績が入力済みの月数で割る（例: 6,7,8月のみ入力済みなら3で割る）。
     const activeMonths = months.filter((item) => item.visitTotal > 0)
     const enteredMonthCount = activeMonths.length || 1
-    const comparisonMonthKey = monthKeys.has(comparisonMonth)
+    // 比較対象月。選択中の月に実績がまだ無い場合（未入力の当月など）は、
+    // 全件「減少」と誤解されないよう実績のある直近月へ自動的に読み替える。
+    const latestMonthWithVisits = [...months].reverse().find((item) => item.visitTotal > 0)?.month
+    const requestedMonthHasVisits = months.some((item) => item.month === comparisonMonth && item.visitTotal > 0)
+    const comparisonMonthKey = (monthKeys.has(comparisonMonth) && requestedMonthHasVisits)
       ? comparisonMonth
-      : [...months].reverse().find((item) => item.visitTotal > 0)?.month || months[0].month
+      : latestMonthWithVisits || comparisonMonth || months[0].month
     const providerPerformance = data.providers.flatMap((provider) => {
       if (provider.officeId !== user.officeId || provider.hiddenAt) return []
       let visitTotal = 0
@@ -545,6 +588,7 @@ export const api = {
       return [{
         id: provider.id,
         name: provider.name,
+        kind: classifyProviderKind(provider.name),
         staffName: data.staff.find((person) => person.id === latestStaffId)?.name || '',
         visitTotal,
         monthsVisited: activeMonths.size,
@@ -554,6 +598,22 @@ export const api = {
         comparisonDifference: round1(comparisonVisitTotal - fiscalMonthlyAverage),
       }]
     }).sort((left, right) => right.visitTotal - left.visitTotal || left.name.localeCompare(right.name, 'ja'))
+
+    // 包括／居宅それぞれの訪問量と、月平均に対する増減の内訳
+    const kindSummary = ['houkatsu', 'kyotaku'].map((kind) => {
+      const items = providerPerformance.filter((item) => item.kind === kind)
+      const kindVisitTotal = items.reduce((sum, item) => sum + item.visitTotal, 0)
+      return {
+        kind,
+        label: PROVIDER_KIND_LABEL[kind],
+        providerCount: items.length,
+        visitTotal: kindVisitTotal,
+        monthlyAverage: round1(kindVisitTotal / enteredMonthCount),
+        comparisonVisitTotal: items.reduce((sum, item) => sum + item.comparisonVisitTotal, 0),
+        increasedCount: items.filter((item) => item.comparisonDifference > 0).length,
+        decreasedCount: items.filter((item) => item.comparisonDifference < 0).length,
+      }
+    })
 
     const visitTotal = months.reduce((sum, item) => sum + item.visitTotal, 0)
     const monthlyVisitedEntityTotal = months.reduce((sum, item) => sum + item.visitedEntityCount, 0)
@@ -618,7 +678,9 @@ export const api = {
       },
       frequencyBands,
       comparisonMonth: comparisonMonthKey,
-      providerComparison: [...providerPerformance].sort((left, right) => right.comparisonVisitTotal - left.comparisonVisitTotal || right.visitTotal - left.visitTotal || left.name.localeCompare(right.name, 'ja')),
+      kindSummary,
+      // 月平均との差が大きい順（増加が上・減少が下）に並べ、増減している訪問先をひと目で分かるようにする
+      providerComparison: [...providerPerformance].sort((left, right) => right.comparisonDifference - left.comparisonDifference || right.visitTotal - left.visitTotal || left.name.localeCompare(right.name, 'ja')),
       providerRanking: providerPerformance.slice(0, 10),
       staffBreakdown,
     }

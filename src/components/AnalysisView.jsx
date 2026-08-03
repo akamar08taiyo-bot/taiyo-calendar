@@ -95,7 +95,34 @@ export function AnalysisView({ fiscalYear, setFiscalYear, analytics, loading, sc
       <div className="chart-panel peak-panel"><div className="panel-heading"><div><h2>活動のピーク</h2><span>年度内で訪問件数が最も多い月</span></div></div>{analytics?.movement?.topMonth ? <div className="peak-value"><span>{analytics.movement.topMonth.label}</span><strong>{analytics.movement.topMonth.visitTotal}<small>回</small></strong><p>訪問先 {analytics.movement.topMonth.visitedEntityCount}件・1先あたり {decimal(analytics.movement.topMonth.averagePerProvider)}回</p></div> : <div className="peak-value empty"><strong>—</strong><p>対象年度の記録がありません</p></div>}</div>
     </section>
 
-    {selectedStaffId && analytics?.providerComparison?.length > 0 && <section className="staff-panel provider-comparison-panel"><div className="panel-heading"><div><h2>{comparisonLabel}の居宅別実績</h2><span>各居宅の今年度月平均に対して、今月の訪問数を比較</span></div><span className="chart-unit">対象：{scopeLabel}</span></div><div className="responsive-table"><table className="staff-table comparison-table"><thead><tr><th>居宅名</th><th>今年度訪問数</th><th>今年度月平均</th><th>今月</th><th>平均との差</th></tr></thead><tbody>{analytics.providerComparison.map((provider) => <tr key={provider.id}><th>{provider.name}</th><td>{provider.visitTotal}回</td><td>{decimal(provider.fiscalMonthlyAverage)}回</td><td><strong>{provider.comparisonVisitTotal}回</strong></td><td><Difference value={provider.comparisonDifference}/></td></tr>)}</tbody></table></div></section>}
+    {analytics?.kindSummary?.some((item) => item.providerCount > 0) && (
+      <section className="staff-panel"><div className="panel-heading"><div><h2>包括・居宅別の集計</h2><span>地域包括支援センターと居宅介護支援事業所を分けて確認</span></div><span className="chart-unit">対象：{scopeLabel}</span></div>
+        <div className="responsive-table"><table className="staff-table"><thead><tr><th>種別</th><th>訪問先数</th><th>今年度訪問数</th><th>月平均</th><th>{comparisonLabel}</th><th>平均より増</th><th>平均より減</th></tr></thead><tbody>
+          {analytics.kindSummary.map((item) => <tr key={item.kind}><th>{item.label}</th><td>{item.providerCount}件</td><td>{item.visitTotal}回</td><td>{decimal(item.monthlyAverage)}回</td><td><strong>{item.comparisonVisitTotal}回</strong></td><td className="kind-up">{item.increasedCount}件</td><td className="kind-down">{item.decreasedCount}件</td></tr>)}
+        </tbody></table></div>
+      </section>
+    )}
+
+    {analytics?.providerComparison?.length > 0 && (
+      <section className="staff-panel provider-comparison-panel">
+        <div className="panel-heading"><div><h2>{comparisonLabel}の訪問先別 増減</h2><span>今年度の月平均に対して、増えている訪問先・減っている訪問先を確認</span></div><span className="chart-unit">対象：{scopeLabel}</span></div>
+        <div className="comparison-legend">
+          <span className="kind-up">増加 {analytics.providerComparison.filter((item) => item.comparisonDifference > 0).length}件</span>
+          <span className="kind-down">減少 {analytics.providerComparison.filter((item) => item.comparisonDifference < 0).length}件</span>
+          <span className="kind-flat">増減なし {analytics.providerComparison.filter((item) => item.comparisonDifference === 0).length}件</span>
+        </div>
+        <div className="responsive-table"><table className="staff-table comparison-table"><thead><tr><th>訪問先</th><th>種別</th><th>今年度訪問数</th><th>今年度月平均</th><th>{comparisonLabel}</th><th>平均との差</th></tr></thead><tbody>
+          {analytics.providerComparison.map((provider) => <tr key={provider.id}>
+            <th>{provider.name}</th>
+            <td><span className={`kind-tag kind-tag-${provider.kind}`}>{provider.kind === 'houkatsu' ? '包括' : '居宅'}</span></td>
+            <td>{provider.visitTotal}回</td>
+            <td>{decimal(provider.fiscalMonthlyAverage)}回</td>
+            <td><strong>{provider.comparisonVisitTotal}回</strong></td>
+            <td><Difference value={provider.comparisonDifference}/></td>
+          </tr>)}
+        </tbody></table></div>
+      </section>
+    )}
 
     {analytics?.providerRanking?.length > 0 && <section className="staff-panel"><div className="panel-heading"><div><h2>訪問先別ランキング</h2><span>今年度の訪問数が多い先を確認</span></div><span className="chart-unit">上位10件</span></div><div className="responsive-table"><table className="staff-table ranking-table"><thead><tr><th>順位</th><th>訪問先</th><th>営業員</th><th>今年度訪問数</th><th>今年度月平均</th></tr></thead><tbody>{analytics.providerRanking.map((provider, index) => <tr key={provider.id}><td>{index + 1}</td><th>{provider.name}</th><td>{provider.staffName}</td><td>{provider.visitTotal}回</td><td>{decimal(provider.fiscalMonthlyAverage)}回</td></tr>)}</tbody></table></div></section>}
 

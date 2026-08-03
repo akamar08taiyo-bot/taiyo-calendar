@@ -279,6 +279,14 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .comparison-difference.positive { color: #087f73; background: #e6f7f3; }
 .comparison-difference.negative { color: #9a5d18; background: #fff2df; }
 .comparison-difference.neutral { color: #617387; background: #eef2f5; }
+.comparison-table { min-width: 680px; }
+.comparison-legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; font-weight: 800; }
+.kind-up { color: #087f73; }
+.kind-down { color: #b4551c; }
+.kind-flat { color: #617387; }
+.kind-tag { display: inline-flex; min-width: 38px; padding: 3px 8px; border-radius: 999px; justify-content: center; font-size: 11px; font-weight: 900; }
+.kind-tag-houkatsu { color: #1a5aa7; background: #e6f0fb; }
+.kind-tag-kyotaku { color: #6b4ea8; background: #efeafb; }
 .analysis-definition { margin-top: 13px; padding: 11px 3px; display: flex; align-items: flex-start; gap: 7px; color: #52667a; font-size: 11px; line-height: 1.5; }
 .sales-summary-panel { margin-top: 13px; padding: 18px; border: 1px solid #cfe8f7; border-radius: 16px; background: linear-gradient(135deg,#fff,#f6fcff); box-shadow: 0 7px 22px rgba(14,165,233,.06); }
 .sales-insight-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
