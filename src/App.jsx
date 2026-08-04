@@ -7,6 +7,7 @@ import { Button, Icon } from './components/Icon'
 import { LoginScreen } from './components/LoginScreen'
 import { InitialImportScreen } from './components/InitialImportScreen'
 import { PrintView } from './components/PrintView'
+import { SalesReportView } from './components/SalesReportView'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 const fiscalFor = (month) => { const [year, number] = month.split('-').map(Number); return number >= 4 ? year : year - 1 }
@@ -378,6 +379,8 @@ export default function App() {
     pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onChangeKind={changeProviderKind} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} onOpenAnalysis={() => setActiveTab('analysis')} canImport={session.permissions.canImport}/>
   } else if (activeTab === 'analysis') {
     pageContent = <AnalysisView fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} analytics={analytics} loading={analyticsLoading} scopeLabel={selectedStaffName || '営業所全体'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} canSelectStaff={session.user.role !== 'staff'} onBack={() => setActiveTab('calendar')} onPdf={openPdfDialog}/>
+  } else if (activeTab === 'salesReport') {
+    pageContent = <SalesReportView officeName={session.office.name} fiscalYear={fiscalYear}/>
   } else {
     pageContent = <PrintView month={month} officeName={session.office.name} staff={staff} calendar={printCalendar} staffCalendars={printStaffCalendars} selectedStaffId={printStaffId} setSelectedStaffId={(staffId) => { setPrintCalendar(null); setPrintStaffCalendars([]); setPrintStaffId(staffId) }} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={pdfLoading} generating={pdfGenerating} onChangeMonth={changeMonth} onOpenPrint={openPrintPdf} onDownload={savePdfFile}/>
   }
@@ -385,7 +388,7 @@ export default function App() {
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
       <div className="sidebar-brand"><span className="brand-symbol">居</span><span>居宅カレンダー</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
-      <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => { setActiveTab('analysis'); setSidebarOpen(false) }}><Icon name="chart"/>実績分析</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
+      <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => { setActiveTab('analysis'); setSidebarOpen(false) }}><Icon name="chart"/>実績分析</button><button className={activeTab === 'salesReport' ? 'active' : ''} onClick={() => { setActiveTab('salesReport'); setSidebarOpen(false) }}><Icon name="report"/>営業月報</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
       <div className="sidebar-bottom">{session.user.role === 'system_admin' && <button onClick={openSettings}><Icon name="settings"/>システム設定</button>}<div className="retention-note"><Icon name="info" size={16}/>訪問記録は5年以上保持</div><button onClick={logout}><Icon name="logout"/>ログアウト</button></div>
     </aside>
     {sidebarOpen && <button className="sidebar-scrim" aria-label="メニューを閉じる" onClick={() => setSidebarOpen(false)}/>} 

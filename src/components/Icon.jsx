@@ -17,6 +17,7 @@ const paths = {
   logout: <><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9"/></>, eyeOff: <><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10.3 10.3 0 0 1 12 5c5.5 0 9 7 9 7a16 16 0 0 1-2.1 3M6.2 6.2C3.9 7.8 3 12 3 12s3.5 7 9 7a9 9 0 0 0 3-.5"/></>,
   minus: <path d="M5 12h14"/>, reset: <path d="M4 12a8 8 0 1 0 2.3-5.7L4 9M4 4v5h5"/>,
   code: <><path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14"/></>,
+  report: <><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5M9 13h6M9 17h6M9 9h2"/></>,
 }
 
 export function Icon({ name, size = 18 }) {

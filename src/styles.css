@@ -872,3 +872,68 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* ============================== 営業月報（SalesReportView） ============================== */
+.srv-root { display: flex; flex-direction: column; gap: 14px; }
+.srv-sub-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.srv-sub-tabs button { height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: #52667a; font-size: 12px; font-weight: 800; cursor: pointer; }
+.srv-sub-tabs button.active { background: var(--teal); color: #fff; }
+.srv-panel { display: flex; flex-direction: column; gap: 14px; }
+.srv-month-switch { display: flex; gap: 4px; flex-wrap: wrap; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.srv-month-switch button { height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #52667a; font-size: 12px; font-weight: 800; cursor: pointer; }
+.srv-month-switch button.active { background: var(--teal-soft); color: var(--teal-deep); }
+.srv-month-title { color: var(--navy); font-size: 16px; font-weight: 900; }
+.srv-card { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(20,52,82,.035); display: flex; flex-direction: column; gap: 10px; }
+.srv-card > b { color: var(--navy); font-size: 13px; }
+.srv-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.srv-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.srv-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 900px) { .srv-grid-2, .srv-grid-3 { grid-template-columns: 1fr; } }
+.srv-table-scroll { overflow-x: auto; }
+.srv-table { border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+.srv-table th, .srv-table td { border: 1px solid var(--line); padding: 5px 6px; text-align: center; }
+.srv-table thead th { background: var(--teal-soft); color: var(--teal-deep); font-weight: 800; }
+.srv-sticky { position: sticky; left: 0; background: #fff; z-index: 1; }
+.srv-rep-name { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+.srv-rep-remove { border: 0; background: none; color: #b0435a; font-weight: 900; cursor: pointer; font-size: 13px; padding: 0 3px; }
+.srv-calc { font-weight: 800; color: var(--teal-deep); background: #f7fbff; }
+.srv-total-row th, .srv-total-row td { background: #eef7f6; font-weight: 900; color: var(--navy); }
+.srv-empty { color: #8a9bab; padding: 10px; }
+.srv-num-input { height: 28px; padding: 0 4px; border: 1px solid var(--line-strong); border-radius: 6px; text-align: right; font-size: 11px; font-weight: 700; color: var(--navy); }
+.srv-text-input { height: 34px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: 12px; }
+.srv-add-rep { display: flex; gap: 6px; align-items: center; }
+.srv-add-rep input { height: 32px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: 12px; width: 140px; }
+.srv-add-rep button { height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--teal); color: #fff; font-size: 11px; font-weight: 800; cursor: pointer; }
+.srv-rep-details { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+.srv-rep-details summary { cursor: pointer; font-weight: 800; color: var(--navy); font-size: 12px; }
+.srv-field-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+.srv-field-grid label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 700; color: #52667a; }
+.srv-office-summary { margin-top: 6px; padding: 10px; border-radius: 9px; background: #f7fbff; border: 1px solid var(--line); }
+.srv-office-summary-title { font-size: 11px; font-weight: 900; color: var(--teal-deep); margin-bottom: 6px; }
+.srv-kv-grid { display: grid; grid-template-columns: auto auto; gap: 5px 14px; font-size: 12px; }
+.srv-kv-grid span { color: #52667a; font-weight: 700; }
+.srv-kv-grid b { color: var(--navy); text-align: right; }
+.srv-mini-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+.srv-mini-table th, .srv-mini-table td { border: 1px solid var(--line); padding: 4px 6px; text-align: center; }
+.srv-mini-table thead th { background: var(--teal-soft); color: var(--teal-deep); }
+.srv-mini-table td:first-child { text-align: left; font-weight: 700; }
+.srv-detail-form { display: flex; flex-direction: column; gap: 16px; }
+.srv-detail-block { display: flex; flex-direction: column; gap: 6px; }
+.srv-detail-title { font-size: 12px; font-weight: 900; color: var(--navy); }
+.srv-detail-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.srv-detail-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 900px) { .srv-detail-3col, .srv-detail-2col { grid-template-columns: 1fr; } }
+.srv-detail-3col label, .srv-detail-2col label { display: block; font-size: 11px; font-weight: 700; color: #52667a; margin-top: 4px; }
+.srv-detail-form textarea { width: 100%; margin-top: 4px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 12px; resize: vertical; }
+.srv-goal-block { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.srv-goal-block > button { margin-top: 8px; height: 32px; padding: 0 12px; border: 1px dashed var(--line-strong); border-radius: 8px; background: #fff; color: var(--teal-deep); font-size: 11px; font-weight: 800; cursor: pointer; }
+.srv-goal-item { padding: 10px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 9px; background: #fbfdff; }
+.srv-goal-item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.srv-goal-item textarea { width: 100%; padding: 6px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: 12px; font: inherit; }
+.srv-eval-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
+.srv-eval-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; font-weight: 900; color: var(--teal-deep); }
+@media (max-width: 900px) { .srv-eval-grid { grid-template-columns: 1fr 1fr; } }
+.srv-readonly-text { white-space: pre-wrap; font-size: 12px; color: #445265; line-height: 1.6; }
+.srv-note { font-size: 11px; color: #8a9bab; }
+.srv-plus { color: #087f73; font-weight: 800; }
+.srv-minus { color: #b0435a; font-weight: 800; }
