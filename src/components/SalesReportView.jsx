@@ -27,47 +27,76 @@ function NumberCell({ value, onChange, width = 64 }) {
 }
 
 /* ============================== 月報タブ ============================== */
-function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYear, refresh }) {
-  const [openRep, setOpenRep] = useState(report.repNames[0] || null)
-  const [newRepName, setNewRepName] = useState('')
+// 入力欄をグループ分けして、1画面あたりの情報量を抑えつつ大きく表示する。
+const VISIT_GROUPS = [
+  ['訪問先', [['houkatsu', '包括（統括）'], ['kyotaku', '居宅'], ['shisetsu', '施設等'], ['kojin', '個人宅'], ['yakusho', '役所']]],
+  ['レンタル', [['rentalSoudan', '相談'], ['rentalKaigo', '介護保険納品'], ['rentalJihi', '自費（特価）納品'], ['rentalKaishu', '回収'], ['rentalKoukan', '交換']]],
+  ['商品販売', [['hanbaiSoudan', '相談'], ['hanbaiNouhin', '納品']]],
+  ['住宅改修', [['kaishuSoudan', '相談'], ['kaishuGenba', '現場調査'], ['kaishuKouji', '工事立ち合い']]],
+  ['顧客対応', [['keikakusho', '福祉用具サービス計画書'], ['monitoring', 'モニタリング'], ['tantousha', '担当者会議'], ['claim', 'クレーム対応等'], ['shukin', '集金']]],
+  ['その他', [['doukou', '同行・応援'], ['sonota', 'その他'], ['kadou', '稼働日数']]],
+]
 
+function BigField({ label, value, onChange, suffix }) {
+  return (
+    <label className="srv-big-field">
+      <span className="srv-big-label">{label}</span>
+      <span className="srv-big-input-wrap">
+        <input
+          type="number"
+          value={value === 0 ? 0 : value || ''}
+          onChange={(e) => onChange(Number(e.target.value) || 0)}
+          className="srv-big-input"
+        />
+        {suffix && <em className="srv-big-suffix">{suffix}</em>}
+      </span>
+    </label>
+  )
+}
+
+function StatCard({ label, value, unit, tone }) {
+  return (
+    <div className={`srv-stat ${tone || ''}`}>
+      <span>{label}</span>
+      <strong>{value}<em>{unit}</em></strong>
+    </div>
+  )
+}
+
+/* ---------- 営業所合計ビュー（読み取り専用・自動集計） ---------- */
+function OfficeSummaryView({ report, monthKey }) {
   const monthData = report.months[monthKey] || { reps: {} }
   const reps = report.repNames
 
   const officeVisit = useMemo(() => sumVisits(reps.map((n) => monthData.reps[n]?.visit || emptyVisit())), [reps, monthData])
   const officeSales = useMemo(() => sumSalesFigures(reps.map((n) => monthData.reps[n]?.sales || emptySalesFigures())), [reps, monthData])
   const officeHanbai = useMemo(() => sumHanbaiUchiwake(reps.map((n) => monthData.reps[n]?.hanbai || emptyHanbaiUchiwake())), [reps, monthData])
-
   const cumAll = useMemo(() => cumulativeSalesThrough(report, monthKey), [report, monthKey])
   const officeCum = useMemo(() => sumSalesFigures(reps.map((n) => cumAll[n])), [reps, cumAll])
 
-  function patchRep(repName, patch) {
-    updateRepEntry(officeName, monthKey, repName, patch)
-    refresh()
-  }
+  const hanbaiYosanKei = officeSales.hanbaiYosan + officeSales.kaishuuYosan
+  const hanbaiUriageKei = officeSales.hanbaiUriage + officeSales.kaishuuUriage
 
-  const calendarYear = fiscalCalendarYear(fiscalYear, monthKey)
+  const kaigoKei = reps.reduce((s, n) => s + (monthData.reps[n]?.kaigoRentalJisseki?.houkatsu || 0) + (monthData.reps[n]?.kaigoRentalJisseki?.kyotaku || 0), 0)
+  const tokkaKei = reps.reduce((s, n) => s + (monthData.reps[n]?.tokkaBedJisseki?.houkatsu || 0) + (monthData.reps[n]?.tokkaBedJisseki?.kyotaku || 0), 0)
+  const houmonHou = reps.reduce((s, n) => s + (monthData.reps[n]?.houmonJisseki?.houkatsu || 0), 0)
+  const houmonKyo = reps.reduce((s, n) => s + (monthData.reps[n]?.houmonJisseki?.kyotaku || 0), 0)
 
   return (
     <div className="srv-panel">
-      <div className="srv-month-switch">
-        {MONTH_KEYS.map((k) => (
-          <button key={k} className={k === monthKey ? 'active' : ''} onClick={() => setMonthKey(k)}>{MONTH_LABELS[k]}</button>
-        ))}
+      <div className="srv-stat-row">
+        <StatCard label="訪問合計" value={num(visitTotal(officeVisit))} unit="件" tone="accent" />
+        <StatCard label="販売合計（売上）" value={yen(hanbaiUriageKei)} unit="千円" />
+        <StatCard label="販売予算" value={yen(hanbaiYosanKei)} unit="千円" />
+        <StatCard label="予算差" value={yen(hanbaiUriageKei - hanbaiYosanKei)} unit="千円" tone={hanbaiUriageKei - hanbaiYosanKei >= 0 ? 'plus' : 'minus'} />
+        <StatCard label="当月回収" value={yen(officeSales.touGetsuKaishu)} unit="千円" />
+        <StatCard label="レンタル実績（累計）" value={yen(officeCum.rentalJissekiAtsumu)} unit="千円" />
       </div>
-      <div className="srv-month-title">{calendarYear}年{MONTH_LABELS[monthKey]}　営業月報　【{officeName}】</div>
 
-      {/* 訪問実績（担当者ごと＋営業所計） */}
       <div className="srv-card">
-        <div className="srv-card-head">
-          <b>訪問実績</b>
-          <div className="srv-add-rep">
-            <input value={newRepName} onChange={(e) => setNewRepName(e.target.value)} placeholder="担当者名を追加" />
-            <button onClick={() => { if (newRepName.trim()) { addRep(officeName, newRepName.trim()); setNewRepName(''); refresh() } }}>＋追加</button>
-          </div>
-        </div>
+        <b>訪問実績（担当者別・営業所計）</b>
         <div className="srv-table-scroll">
-          <table className="srv-table">
+          <table className="srv-table srv-table-lg">
             <thead>
               <tr>
                 <th className="srv-sticky">担当者</th>
@@ -80,18 +109,13 @@ function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYea
                 const v = monthData.reps[name]?.visit || emptyVisit()
                 return (
                   <tr key={name}>
-                    <th className="srv-sticky srv-rep-name">
-                      {name}
-                      <button className="srv-rep-remove" title="削除" onClick={() => { if (window.confirm(name + 'を削除しますか？（過去の入力データも消えます）')) { removeRep(officeName, name); refresh() } }}>×</button>
-                    </th>
-                    {VISIT_FIELDS.map(([k]) => (
-                      <td key={k}><NumberCell value={v[k]} onChange={(val) => patchRep(name, { visit: { ...v, [k]: val } })} width={48} /></td>
-                    ))}
+                    <th className="srv-sticky">{name}</th>
+                    {VISIT_FIELDS.map(([k]) => <td key={k}>{num(v[k])}</td>)}
                     <td className="srv-calc">{num(visitTotal(v))}</td>
                   </tr>
                 )
               })}
-              {reps.length === 0 && <tr><td colSpan={VISIT_FIELDS.length + 2} className="srv-empty">「＋追加」で担当者を登録してください</td></tr>}
+              {reps.length === 0 && <tr><td colSpan={VISIT_FIELDS.length + 2} className="srv-empty">担当者が登録されていません</td></tr>}
               <tr className="srv-total-row">
                 <th className="srv-sticky">営業所計</th>
                 {VISIT_FIELDS.map(([k]) => <td key={k}>{num(officeVisit[k])}</td>)}
@@ -102,152 +126,280 @@ function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYea
         </div>
       </div>
 
-      {/* 月間売上・累計売上（担当者ごと入力／営業所計は自動） */}
       <div className="srv-grid-2">
         <div className="srv-card">
-          <b>月間売上（千円・手入力）</b>
-          {reps.map((name) => {
-            const s = monthData.reps[name]?.sales || emptySalesFigures()
-            return (
-              <details key={name} className="srv-rep-details" open={openRep === name} onToggle={(e) => setOpenRep(e.target.open ? name : null)}>
-                <summary>{name}</summary>
-                <div className="srv-field-grid">
-                  <label>レンタル納品合計<NumberCell value={s.rentalNouhinKeikei} onChange={(v) => patchRep(name, { sales: { ...s, rentalNouhinKeikei: v } })} width={90} /></label>
-                  <label>前月回収<NumberCell value={s.zenGetsuKaishu} onChange={(v) => patchRep(name, { sales: { ...s, zenGetsuKaishu: v } })} width={90} /></label>
-                  <label>目標値<NumberCell value={s.mokuhyou} onChange={(v) => patchRep(name, { sales: { ...s, mokuhyou: v } })} width={90} /></label>
-                  <label>当月回収<NumberCell value={s.touGetsuKaishu} onChange={(v) => patchRep(name, { sales: { ...s, touGetsuKaishu: v } })} width={90} /></label>
-                  <label>商品販売予算<NumberCell value={s.hanbaiYosan} onChange={(v) => patchRep(name, { sales: { ...s, hanbaiYosan: v } })} width={90} /></label>
-                  <label>商品販売売上<NumberCell value={s.hanbaiUriage} onChange={(v) => patchRep(name, { sales: { ...s, hanbaiUriage: v } })} width={90} /></label>
-                  <label>住宅改修予算<NumberCell value={s.kaishuuYosan} onChange={(v) => patchRep(name, { sales: { ...s, kaishuuYosan: v } })} width={90} /></label>
-                  <label>住宅改修売上<NumberCell value={s.kaishuuUriage} onChange={(v) => patchRep(name, { sales: { ...s, kaishuuUriage: v } })} width={90} /></label>
-                  <label>レンタル予算（累計）<NumberCell value={s.rentalYosanAtsumu} onChange={(v) => patchRep(name, { sales: { ...s, rentalYosanAtsumu: v } })} width={90} /></label>
-                  <label>レンタル実績（累計）<NumberCell value={s.rentalJissekiAtsumu} onChange={(v) => patchRep(name, { sales: { ...s, rentalJissekiAtsumu: v } })} width={90} /></label>
-                </div>
-              </details>
-            )
-          })}
-          <div className="srv-office-summary">
-            <div className="srv-office-summary-title">営業所計（自動集計）</div>
-            <div className="srv-kv-grid">
-              <span>販売予算</span><b>{yen((officeSales.hanbaiYosan) + (officeSales.kaishuuYosan))}</b>
-              <span>販売合計（売上）</span><b>{yen(officeSales.hanbaiUriage + officeSales.kaishuuUriage)}</b>
-              <span>予算差</span><b>{yen((officeSales.hanbaiUriage + officeSales.kaishuuUriage) - (officeSales.hanbaiYosan + officeSales.kaishuuYosan))}</b>
-              <span>当月回収</span><b>{yen(officeSales.touGetsuKaishu)}</b>
-              <span>レンタル実績（累計）</span><b>{yen(officeCum.rentalJissekiAtsumu)}</b>
-              <span>レンタル予算（累計）</span><b>{yen(officeCum.rentalYosanAtsumu)}</b>
-            </div>
-          </div>
+          <b>月間売上・累計（営業所計・千円）</b>
+          <table className="srv-mini-table srv-mini-lg">
+            <tbody>
+              <tr><td>レンタル納品合計</td><td>{yen(officeSales.rentalNouhinKeikei)}</td></tr>
+              <tr><td>前月回収</td><td>{yen(officeSales.zenGetsuKaishu)}</td></tr>
+              <tr><td>目標値</td><td>{yen(officeSales.mokuhyou)}</td></tr>
+              <tr><td>目標差</td><td className={officeSales.rentalNouhinKeikei - officeSales.mokuhyou >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(officeSales.rentalNouhinKeikei - officeSales.mokuhyou)}</td></tr>
+              <tr><td>当月回収</td><td>{yen(officeSales.touGetsuKaishu)}</td></tr>
+              <tr><td>商品販売 予算 / 売上</td><td>{yen(officeSales.hanbaiYosan)} / {yen(officeSales.hanbaiUriage)}</td></tr>
+              <tr><td>住宅改修 予算 / 売上</td><td>{yen(officeSales.kaishuuYosan)} / {yen(officeSales.kaishuuUriage)}</td></tr>
+              <tr className="srv-row-strong"><td>販売合計（予算 / 売上）</td><td>{yen(hanbaiYosanKei)} / {yen(hanbaiUriageKei)}</td></tr>
+              <tr><td>レンタル予算（累計）</td><td>{yen(officeCum.rentalYosanAtsumu)}</td></tr>
+              <tr><td>レンタル実績（累計）</td><td>{yen(officeCum.rentalJissekiAtsumu)}</td></tr>
+            </tbody>
+          </table>
         </div>
 
-        {/* 販売内訳 */}
         <div className="srv-card">
-          <b>販売内訳（手入力・千円）</b>
-          {reps.map((name) => {
-            const h = monthData.reps[name]?.hanbai || emptyHanbaiUchiwake()
-            return (
-              <details key={name} className="srv-rep-details">
-                <summary>{name}</summary>
-                <table className="srv-mini-table">
-                  <thead><tr><th>項目</th><th>予算件数</th><th>予算売上</th><th>実績件数</th><th>実績売上</th></tr></thead>
-                  <tbody>
-                    {HANBAI_ITEMS.map((item) => (
-                      <tr key={item}>
-                        <td>{item}</td>
-                        <td><NumberCell value={h[item].yosanKensu} onChange={(v) => patchRep(name, { hanbai: { ...h, [item]: { ...h[item], yosanKensu: v } } })} width={48} /></td>
-                        <td><NumberCell value={h[item].yosanUriage} onChange={(v) => patchRep(name, { hanbai: { ...h, [item]: { ...h[item], yosanUriage: v } } })} width={64} /></td>
-                        <td><NumberCell value={h[item].jissekiKensu} onChange={(v) => patchRep(name, { hanbai: { ...h, [item]: { ...h[item], jissekiKensu: v } } })} width={48} /></td>
-                        <td><NumberCell value={h[item].jissekiUriage} onChange={(v) => patchRep(name, { hanbai: { ...h, [item]: { ...h[item], jissekiUriage: v } } })} width={64} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            )
-          })}
-          <div className="srv-office-summary">
-            <div className="srv-office-summary-title">営業所計（自動集計）</div>
-            <table className="srv-mini-table">
-              <thead><tr><th>項目</th><th>予算件数</th><th>予算売上</th><th>実績件数</th><th>実績売上</th></tr></thead>
-              <tbody>
-                {HANBAI_ITEMS.map((item) => (
+          <b>販売内訳（営業所計・千円）</b>
+          <table className="srv-mini-table srv-mini-lg">
+            <thead><tr><th>項目</th><th>予算件数</th><th>予算売上</th><th>実績件数</th><th>実績売上</th><th>差</th></tr></thead>
+            <tbody>
+              {HANBAI_ITEMS.map((item) => {
+                const h = officeHanbai[item]
+                const diff = h.jissekiUriage - h.yosanUriage
+                return (
                   <tr key={item}>
-                    <td>{item}</td><td>{num(officeHanbai[item].yosanKensu)}</td><td>{yen(officeHanbai[item].yosanUriage)}</td>
-                    <td>{num(officeHanbai[item].jissekiKensu)}</td><td>{yen(officeHanbai[item].jissekiUriage)}</td>
+                    <td>{item}</td><td>{num(h.yosanKensu)}</td><td>{yen(h.yosanUriage)}</td>
+                    <td>{num(h.jissekiKensu)}</td><td>{yen(h.jissekiUriage)}</td>
+                    <td className={diff >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(diff)}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ターゲット包括・居宅／目標系／総括・次月対策 は担当者別に入力（開いている担当者のみ表示） */}
-      {openRep && reps.includes(openRep) && (
-        <div className="srv-card">
-          <b>{openRep} の詳細入力</b>
-          <RepDetailForm officeName={officeName} monthKey={monthKey} repName={openRep} entry={monthData.reps[openRep]} onChange={(patch) => patchRep(openRep, patch)} />
+      <div className="srv-card">
+        <b>目標達成状況（営業所計）</b>
+        <div className="srv-stat-row">
+          <StatCard label={`介護保険レンタル新規（目標 ${report.goals.kaigoRental.mokuhyou * reps.length}件）`} value={num(kaigoKei)} unit="件" tone={kaigoKei >= report.goals.kaigoRental.mokuhyou * reps.length ? 'plus' : ''} />
+          <StatCard label={`特価ベッド新規（目標 ${report.goals.tokkaBed.mokuhyou * reps.length}台）`} value={num(tokkaKei)} unit="台" tone={tokkaKei >= report.goals.tokkaBed.mokuhyou * reps.length ? 'plus' : ''} />
+          <StatCard label={`包括訪問（目標 ${report.goals.houmon.houkatsu * reps.length}件）`} value={num(houmonHou)} unit="件" tone={houmonHou >= report.goals.houmon.houkatsu * reps.length ? 'plus' : ''} />
+          <StatCard label={`居宅訪問（目標 ${report.goals.houmon.kyotaku * reps.length}件）`} value={num(houmonKyo)} unit="件" tone={houmonKyo >= report.goals.houmon.kyotaku * reps.length ? 'plus' : ''} />
         </div>
-      )}
+      </div>
+
+      <div className="srv-note">※ これらの数値は各担当者タブで入力した内容を自動集計しています。修正は担当者タブから行ってください。</div>
     </div>
   )
 }
 
-function RepDetailForm({ entry, onChange }) {
+/* ---------- 担当者ビュー（大きな入力欄） ---------- */
+function RepEditView({ repName, entry, onChange, goals }) {
+  const visit = entry.visit || emptyVisit()
+  const sales = entry.sales || emptySalesFigures()
+  const hanbai = entry.hanbai || emptyHanbaiUchiwake()
   const targets = entry.targets || {}
   const [newTarget, setNewTarget] = useState('')
+
+  const setVisit = (k, v) => onChange({ visit: { ...visit, [k]: v } })
+  const setSales = (k, v) => onChange({ sales: { ...sales, [k]: v } })
+  const setHanbai = (item, k, v) => onChange({ hanbai: { ...hanbai, [item]: { ...hanbai[item], [k]: v } } })
+
+  const hanbaiKei = HANBAI_ITEMS.reduce((acc, item) => {
+    acc.yosan += hanbai[item].yosanUriage || 0
+    acc.jisseki += hanbai[item].jissekiUriage || 0
+    return acc
+  }, { yosan: 0, jisseki: 0 })
+
   return (
-    <div className="srv-detail-form">
-      <div className="srv-detail-block">
-        <div className="srv-detail-title">ターゲット包括・居宅（手入力）</div>
+    <div className="srv-panel">
+      <div className="srv-stat-row">
+        <StatCard label="訪問合計" value={num(visitTotal(visit))} unit="件" tone="accent" />
+        <StatCard label="販売実績計" value={yen(hanbaiKei.jisseki)} unit="千円" />
+        <StatCard label="販売予算計" value={yen(hanbaiKei.yosan)} unit="千円" />
+        <StatCard label="予算差" value={yen(hanbaiKei.jisseki - hanbaiKei.yosan)} unit="千円" tone={hanbaiKei.jisseki - hanbaiKei.yosan >= 0 ? 'plus' : 'minus'} />
+      </div>
+
+      <div className="srv-card">
+        <b>訪問実績</b>
+        {VISIT_GROUPS.map(([groupName, fields]) => (
+          <div key={groupName} className="srv-group">
+            <div className="srv-group-title">{groupName}</div>
+            <div className="srv-big-grid">
+              {fields.map(([k, label]) => <BigField key={k} label={label} value={visit[k]} onChange={(v) => setVisit(k, v)} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="srv-card">
+        <b>月間売上・累計（千円）</b>
+        <div className="srv-group">
+          <div className="srv-group-title">月間売上（売上状況報告書）</div>
+          <div className="srv-big-grid">
+            <BigField label="レンタル納品合計" value={sales.rentalNouhinKeikei} onChange={(v) => setSales('rentalNouhinKeikei', v)} suffix="千円" />
+            <BigField label="前月回収" value={sales.zenGetsuKaishu} onChange={(v) => setSales('zenGetsuKaishu', v)} suffix="千円" />
+            <BigField label="目標値" value={sales.mokuhyou} onChange={(v) => setSales('mokuhyou', v)} suffix="千円" />
+            <BigField label="当月回収" value={sales.touGetsuKaishu} onChange={(v) => setSales('touGetsuKaishu', v)} suffix="千円" />
+            <BigField label="商品販売 予算" value={sales.hanbaiYosan} onChange={(v) => setSales('hanbaiYosan', v)} suffix="千円" />
+            <BigField label="商品販売 売上" value={sales.hanbaiUriage} onChange={(v) => setSales('hanbaiUriage', v)} suffix="千円" />
+            <BigField label="住宅改修 予算" value={sales.kaishuuYosan} onChange={(v) => setSales('kaishuuYosan', v)} suffix="千円" />
+            <BigField label="住宅改修 売上" value={sales.kaishuuUriage} onChange={(v) => setSales('kaishuuUriage', v)} suffix="千円" />
+          </div>
+          <div className="srv-inline-calc">
+            目標差 <b className={sales.rentalNouhinKeikei - sales.mokuhyou >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(sales.rentalNouhinKeikei - sales.mokuhyou)}</b>
+            ／ 販売合計 <b>{yen(sales.hanbaiUriage + sales.kaishuuUriage)}</b>
+            ／ 予算差 <b className={(sales.hanbaiUriage + sales.kaishuuUriage) - (sales.hanbaiYosan + sales.kaishuuYosan) >= 0 ? 'srv-plus' : 'srv-minus'}>{yen((sales.hanbaiUriage + sales.kaishuuUriage) - (sales.hanbaiYosan + sales.kaishuuYosan))}</b>
+          </div>
+        </div>
+        <div className="srv-group">
+          <div className="srv-group-title">累計売上（売上推移）</div>
+          <div className="srv-big-grid">
+            <BigField label="レンタル予算（累計）" value={sales.rentalYosanAtsumu} onChange={(v) => setSales('rentalYosanAtsumu', v)} suffix="千円" />
+            <BigField label="レンタル実績（累計）" value={sales.rentalJissekiAtsumu} onChange={(v) => setSales('rentalJissekiAtsumu', v)} suffix="千円" />
+          </div>
+          <div className="srv-inline-calc">
+            予算差 <b className={sales.rentalJissekiAtsumu - sales.rentalYosanAtsumu >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(sales.rentalJissekiAtsumu - sales.rentalYosanAtsumu)}</b>
+          </div>
+        </div>
+      </div>
+
+      <div className="srv-card">
+        <b>販売内訳（千円）</b>
+        <div className="srv-table-scroll">
+          <table className="srv-mini-table srv-mini-lg srv-input-table">
+            <thead><tr><th>項目</th><th>予算件数</th><th>予算売上</th><th>実績件数</th><th>実績売上</th><th>予算差</th></tr></thead>
+            <tbody>
+              {HANBAI_ITEMS.map((item) => {
+                const h = hanbai[item]
+                const diff = (h.jissekiUriage || 0) - (h.yosanUriage || 0)
+                return (
+                  <tr key={item}>
+                    <td>{item}</td>
+                    <td><input type="number" className="srv-big-input" value={h.yosanKensu === 0 ? 0 : h.yosanKensu || ''} onChange={(e) => setHanbai(item, 'yosanKensu', Number(e.target.value) || 0)} /></td>
+                    <td><input type="number" className="srv-big-input" value={h.yosanUriage === 0 ? 0 : h.yosanUriage || ''} onChange={(e) => setHanbai(item, 'yosanUriage', Number(e.target.value) || 0)} /></td>
+                    <td><input type="number" className="srv-big-input" value={h.jissekiKensu === 0 ? 0 : h.jissekiKensu || ''} onChange={(e) => setHanbai(item, 'jissekiKensu', Number(e.target.value) || 0)} /></td>
+                    <td><input type="number" className="srv-big-input" value={h.jissekiUriage === 0 ? 0 : h.jissekiUriage || ''} onChange={(e) => setHanbai(item, 'jissekiUriage', Number(e.target.value) || 0)} /></td>
+                    <td className={diff >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(diff)}</td>
+                  </tr>
+                )
+              })}
+              <tr className="srv-total-row">
+                <th>合計</th><td>—</td><td>{yen(hanbaiKei.yosan)}</td><td>—</td><td>{yen(hanbaiKei.jisseki)}</td>
+                <td className={hanbaiKei.jisseki - hanbaiKei.yosan >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(hanbaiKei.jisseki - hanbaiKei.yosan)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="srv-card">
+        <b>ターゲット包括・居宅</b>
         <div className="srv-add-rep">
           <input value={newTarget} onChange={(e) => setNewTarget(e.target.value)} placeholder="施設名を追加" />
           <button onClick={() => { if (newTarget.trim()) { onChange({ targets: { ...targets, [newTarget.trim()]: emptyTarget() } }); setNewTarget('') } }}>＋追加</button>
         </div>
-        <table className="srv-mini-table">
-          <thead><tr><th>ターゲット包括・居宅</th><th>昨年度3月末 契約数</th><th>売上</th><th>今月末 契約数</th><th>売上</th><th></th></tr></thead>
-          <tbody>
-            {Object.entries(targets).map(([name, t]) => (
-              <tr key={name}>
-                <td>{name}</td>
-                <td><NumberCell value={t.lastMar.count} onChange={(v) => onChange({ targets: { ...targets, [name]: { ...t, lastMar: { ...t.lastMar, count: v } } } })} width={50} /></td>
-                <td><NumberCell value={t.lastMar.sales} onChange={(v) => onChange({ targets: { ...targets, [name]: { ...t, lastMar: { ...t.lastMar, sales: v } } } })} width={60} /></td>
-                <td><NumberCell value={t.thisMonth.count} onChange={(v) => onChange({ targets: { ...targets, [name]: { ...t, thisMonth: { ...t.thisMonth, count: v } } } })} width={50} /></td>
-                <td><NumberCell value={t.thisMonth.sales} onChange={(v) => onChange({ targets: { ...targets, [name]: { ...t, thisMonth: { ...t.thisMonth, sales: v } } } })} width={60} /></td>
-                <td><button className="srv-rep-remove" onClick={() => { const n = { ...targets }; delete n[name]; onChange({ targets: n }) }}>×</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="srv-detail-block srv-detail-3col">
-        <div>
-          <div className="srv-detail-title">●介護保険レンタル 新規獲得件数（実績・手入力）</div>
-          <label>包括<NumberCell value={entry.kaigoRentalJisseki?.houkatsu} onChange={(v) => onChange({ kaigoRentalJisseki: { ...entry.kaigoRentalJisseki, houkatsu: v } })} width={50} /></label>
-          <label>居宅<NumberCell value={entry.kaigoRentalJisseki?.kyotaku} onChange={(v) => onChange({ kaigoRentalJisseki: { ...entry.kaigoRentalJisseki, kyotaku: v } })} width={50} /></label>
-        </div>
-        <div>
-          <div className="srv-detail-title">●特価ベッドレンタル 新規獲得件数（実績・手入力）</div>
-          <label>包括<NumberCell value={entry.tokkaBedJisseki?.houkatsu} onChange={(v) => onChange({ tokkaBedJisseki: { ...entry.tokkaBedJisseki, houkatsu: v } })} width={50} /></label>
-          <label>居宅<NumberCell value={entry.tokkaBedJisseki?.kyotaku} onChange={(v) => onChange({ tokkaBedJisseki: { ...entry.tokkaBedJisseki, kyotaku: v } })} width={50} /></label>
-        </div>
-        <div>
-          <div className="srv-detail-title">●包括・居宅訪問件数（実績・手入力）</div>
-          <label>包括<NumberCell value={entry.houmonJisseki?.houkatsu} onChange={(v) => onChange({ houmonJisseki: { ...entry.houmonJisseki, houkatsu: v } })} width={50} /></label>
-          <label>居宅<NumberCell value={entry.houmonJisseki?.kyotaku} onChange={(v) => onChange({ houmonJisseki: { ...entry.houmonJisseki, kyotaku: v } })} width={50} /></label>
+        <div className="srv-table-scroll">
+          <table className="srv-mini-table srv-mini-lg srv-input-table">
+            <thead><tr><th>ターゲット包括・居宅</th><th>昨年度3月末 契約数</th><th>昨年度3月末 売上</th><th>今月末 契約数</th><th>今月末 売上</th><th>進捗</th><th></th></tr></thead>
+            <tbody>
+              {Object.entries(targets).map(([name, t]) => (
+                <tr key={name}>
+                  <td>{name}</td>
+                  <td><input type="number" className="srv-big-input" value={t.lastMar.count === 0 ? 0 : t.lastMar.count || ''} onChange={(e) => onChange({ targets: { ...targets, [name]: { ...t, lastMar: { ...t.lastMar, count: Number(e.target.value) || 0 } } } })} /></td>
+                  <td><input type="number" className="srv-big-input" value={t.lastMar.sales === 0 ? 0 : t.lastMar.sales || ''} onChange={(e) => onChange({ targets: { ...targets, [name]: { ...t, lastMar: { ...t.lastMar, sales: Number(e.target.value) || 0 } } } })} /></td>
+                  <td><input type="number" className="srv-big-input" value={t.thisMonth.count === 0 ? 0 : t.thisMonth.count || ''} onChange={(e) => onChange({ targets: { ...targets, [name]: { ...t, thisMonth: { ...t.thisMonth, count: Number(e.target.value) || 0 } } } })} /></td>
+                  <td><input type="number" className="srv-big-input" value={t.thisMonth.sales === 0 ? 0 : t.thisMonth.sales || ''} onChange={(e) => onChange({ targets: { ...targets, [name]: { ...t, thisMonth: { ...t.thisMonth, sales: Number(e.target.value) || 0 } } } })} /></td>
+                  <td className={t.thisMonth.count - t.lastMar.count >= 0 ? 'srv-plus' : 'srv-minus'}>{t.thisMonth.count - t.lastMar.count >= 0 ? '+' : ''}{num(t.thisMonth.count - t.lastMar.count)}</td>
+                  <td><button className="srv-rep-remove" onClick={() => { const n = { ...targets }; delete n[name]; onChange({ targets: n }) }}>×</button></td>
+                </tr>
+              ))}
+              {Object.keys(targets).length === 0 && <tr><td colSpan={7} className="srv-empty">「＋追加」でターゲット施設を登録してください</td></tr>}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div className="srv-detail-block srv-detail-2col">
-        <div>
-          <div className="srv-detail-title">●総括</div>
-          <textarea rows={4} value={entry.soukatsu} onChange={(e) => onChange({ soukatsu: e.target.value })} />
+      <div className="srv-card">
+        <b>目標・実績</b>
+        <div className="srv-group">
+          <div className="srv-group-title">●介護保険レンタル 新規獲得件数（目標 {goals.kaigoRental.mokuhyou}件/月）</div>
+          <div className="srv-big-grid">
+            <BigField label="包括" value={entry.kaigoRentalJisseki?.houkatsu} onChange={(v) => onChange({ kaigoRentalJisseki: { ...entry.kaigoRentalJisseki, houkatsu: v } })} suffix="件" />
+            <BigField label="居宅" value={entry.kaigoRentalJisseki?.kyotaku} onChange={(v) => onChange({ kaigoRentalJisseki: { ...entry.kaigoRentalJisseki, kyotaku: v } })} suffix="件" />
+          </div>
+          <div className="srv-inline-calc">合計 <b>{num((entry.kaigoRentalJisseki?.houkatsu || 0) + (entry.kaigoRentalJisseki?.kyotaku || 0))}件</b>／達成率 <b>{pct((entry.kaigoRentalJisseki?.houkatsu || 0) + (entry.kaigoRentalJisseki?.kyotaku || 0), goals.kaigoRental.mokuhyou)}</b></div>
         </div>
-        <div>
-          <div className="srv-detail-title">●次月対策</div>
-          <textarea rows={4} value={entry.jigetsuTaisaku} onChange={(e) => onChange({ jigetsuTaisaku: e.target.value })} />
+        <div className="srv-group">
+          <div className="srv-group-title">●特価ベッドレンタル 新規獲得件数（目標 {goals.tokkaBed.mokuhyou}台/月）</div>
+          <div className="srv-big-grid">
+            <BigField label="包括" value={entry.tokkaBedJisseki?.houkatsu} onChange={(v) => onChange({ tokkaBedJisseki: { ...entry.tokkaBedJisseki, houkatsu: v } })} suffix="台" />
+            <BigField label="居宅" value={entry.tokkaBedJisseki?.kyotaku} onChange={(v) => onChange({ tokkaBedJisseki: { ...entry.tokkaBedJisseki, kyotaku: v } })} suffix="台" />
+          </div>
+          <div className="srv-inline-calc">合計 <b>{num((entry.tokkaBedJisseki?.houkatsu || 0) + (entry.tokkaBedJisseki?.kyotaku || 0))}台</b>／達成率 <b>{pct((entry.tokkaBedJisseki?.houkatsu || 0) + (entry.tokkaBedJisseki?.kyotaku || 0), goals.tokkaBed.mokuhyou)}</b></div>
+        </div>
+        <div className="srv-group">
+          <div className="srv-group-title">●包括・居宅訪問件数（目標 包括{goals.houmon.houkatsu}件／居宅{goals.houmon.kyotaku}件）</div>
+          <div className="srv-big-grid">
+            <BigField label="包括" value={entry.houmonJisseki?.houkatsu} onChange={(v) => onChange({ houmonJisseki: { ...entry.houmonJisseki, houkatsu: v } })} suffix="件" />
+            <BigField label="居宅" value={entry.houmonJisseki?.kyotaku} onChange={(v) => onChange({ houmonJisseki: { ...entry.houmonJisseki, kyotaku: v } })} suffix="件" />
+          </div>
+          <div className="srv-inline-calc">
+            合計 <b>{num((entry.houmonJisseki?.houkatsu || 0) + (entry.houmonJisseki?.kyotaku || 0))}件</b>
+            ／達成率 <b>{pct((entry.houmonJisseki?.houkatsu || 0) + (entry.houmonJisseki?.kyotaku || 0), goals.houmon.houkatsu + goals.houmon.kyotaku)}</b>
+          </div>
         </div>
       </div>
+
+      <div className="srv-grid-2">
+        <div className="srv-card">
+          <b>●総括</b>
+          <textarea className="srv-big-textarea" rows={6} value={entry.soukatsu} onChange={(e) => onChange({ soukatsu: e.target.value })} placeholder="今月の総括を入力してください" />
+        </div>
+        <div className="srv-card">
+          <b>●次月対策</b>
+          <textarea className="srv-big-textarea" rows={6} value={entry.jigetsuTaisaku} onChange={(e) => onChange({ jigetsuTaisaku: e.target.value })} placeholder="次月の対策を入力してください" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYear, refresh }) {
+  const [activeRep, setActiveRep] = useState('__office__')
+  const [newRepName, setNewRepName] = useState('')
+  const monthData = report.months[monthKey] || { reps: {} }
+  const reps = report.repNames
+  const calendarYear = fiscalCalendarYear(fiscalYear, monthKey)
+
+  function patchRep(repName, patch) {
+    updateRepEntry(officeName, monthKey, repName, patch)
+    refresh()
+  }
+
+  const currentEntry = activeRep !== '__office__' ? (monthData.reps[activeRep] || null) : null
+
+  return (
+    <div className="srv-panel">
+      <div className="srv-month-switch">
+        {MONTH_KEYS.map((k) => (
+          <button key={k} className={k === monthKey ? 'active' : ''} onClick={() => setMonthKey(k)}>{MONTH_LABELS[k]}</button>
+        ))}
+      </div>
+      <div className="srv-month-title">{calendarYear}年{MONTH_LABELS[monthKey]}　【{officeName}】</div>
+
+      <div className="srv-rep-tabs">
+        <button className={activeRep === '__office__' ? 'active office' : 'office'} onClick={() => setActiveRep('__office__')}>営業所合計</button>
+        {reps.map((name) => (
+          <button key={name} className={activeRep === name ? 'active' : ''} onClick={() => setActiveRep(name)}>{name}</button>
+        ))}
+        <div className="srv-add-rep srv-add-rep-inline">
+          <input value={newRepName} onChange={(e) => setNewRepName(e.target.value)} placeholder="担当者を追加" />
+          <button onClick={() => { const n = newRepName.trim(); if (n) { addRep(officeName, n); setNewRepName(''); refresh(); setActiveRep(n) } }}>＋</button>
+        </div>
+      </div>
+
+      {activeRep === '__office__' ? (
+        <OfficeSummaryView report={report} monthKey={monthKey} />
+      ) : currentEntry ? (
+        <>
+          <div className="srv-rep-head">
+            <span>{activeRep} の入力</span>
+            <button className="srv-rep-delete-btn" onClick={() => { if (window.confirm(activeRep + 'を削除しますか？（全ての月の入力データも消えます）')) { removeRep(officeName, activeRep); setActiveRep('__office__'); refresh() } }}>この担当者を削除</button>
+          </div>
+          <RepEditView repName={activeRep} entry={currentEntry} onChange={(patch) => patchRep(activeRep, patch)} goals={report.goals} />
+        </>
+      ) : (
+        <div className="srv-card"><div className="srv-empty">担当者データがありません</div></div>
+      )}
     </div>
   )
 }
@@ -528,14 +680,17 @@ const SUB_TABS = [
 ]
 
 export function SalesReportView({ officeName, fiscalYear }) {
-  const [, setTick] = useState(0)
+  const [tick, setTick] = useState(0)
   const refresh = () => setTick((t) => t + 1)
-  const report = useMemo(() => getOfficeReport(officeName), [officeName, refresh])
+  const report = useMemo(() => getOfficeReport(officeName), [officeName, tick])
   const [subTab, setSubTab] = useState('monthly')
   const [monthKey, setMonthKey] = useState('04')
 
   return (
     <div className="srv-root">
+      <div className="page-header">
+        <div><h1>営業月報</h1><p>担当者ごとに入力すると、営業所全体の数字が自動で集計されます</p></div>
+      </div>
       <div className="srv-sub-tabs">
         {SUB_TABS.map(([key, label]) => (
           <button key={key} className={subTab === key ? 'active' : ''} onClick={() => setSubTab(key)}>{label}</button>
