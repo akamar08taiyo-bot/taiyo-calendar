@@ -7,9 +7,10 @@ import {
   HANBAI_ITEMS, emptyHanbaiUchiwake, sumHanbaiUchiwake,
   emptyTarget,
   getOfficeReport, updateOfficeReport, updateRepEntry, addRep, removeRep,
-  applyImportedSalesFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
+  applyImportedSalesFigures, applyImportedVisitFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
 } from '../salesReportData'
 import { parseSalesWorkbookAuto } from '../salesReportExcelImport'
+import { parseVisitLogWorkbook } from '../visitLogImport'
 import { downloadElementPdf } from '../pdf-export'
 
 const yen = (n) => `${Math.round(Number(n) || 0).toLocaleString('ja-JP')}`
@@ -426,12 +427,21 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
     setImportBusy(true)
     setImportMessage(null)
     try {
-      const { data } = await parseSalesWorkbookAuto(file, monthKey)
-      const summary = applyImportedSalesFigures(fiscalYear, monthKey, data)
-      refresh()
-      const total = summary.updated.length + summary.created.length
-      const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
-      setImportMessage({ type: 'ok', text: `${MONTH_LABELS[monthKey]}分を${total}件の担当者に反映しました。${note}` })
+      if (/\.(xlsx|xlsm)$/i.test(file.name)) {
+        const { data } = await parseSalesWorkbookAuto(file, monthKey)
+        const summary = applyImportedSalesFigures(fiscalYear, monthKey, data)
+        refresh()
+        const total = summary.updated.length + summary.created.length
+        const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
+        setImportMessage({ type: 'ok', text: `${MONTH_LABELS[monthKey]}分を${total}件の担当者に反映しました。${note}` })
+      } else {
+        const result = await parseVisitLogWorkbook(file)
+        const summary = applyImportedVisitFigures(result.offices)
+        refresh()
+        const total = summary.updated.length + summary.created.length
+        const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
+        setImportMessage({ type: 'ok', text: `訪問ログ${result.matchedRows}/${result.totalRows}件を${total}件の担当者に反映しました。${note}` })
+      }
     } catch (err) {
       setImportMessage({ type: 'error', text: err.message || '取り込みに失敗しました。' })
     } finally {
@@ -457,10 +467,10 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
 
       <div className="srv-import-bar">
         <label className="srv-import-btn">
-          {importBusy ? '取り込み中…' : 'Excelを取り込む（売上状況報告書／担当別売上実績）'}
-          <input type="file" accept=".xlsx,.xlsm" disabled={importBusy} onChange={handleImportFile} hidden />
+          {importBusy ? '取り込み中…' : 'Excelを取り込む（売上状況報告書／担当別売上実績／訪問ログ）'}
+          <input type="file" accept=".xlsx,.xlsm,.xls,.csv" disabled={importBusy} onChange={handleImportFile} hidden />
         </label>
-        <span className="srv-import-hint">全営業所の該当データを{fiscalYear}年度{MONTH_LABELS[monthKey]}分としてまとめて反映します</span>
+        <span className="srv-import-hint">売上系ファイルは{fiscalYear}年度{MONTH_LABELS[monthKey]}分として、訪問ログは日付から年度・月を自動判定して、全営業所の該当データをまとめて反映します</span>
       </div>
       {importMessage && <div className={`srv-import-msg ${importMessage.type}`}>{importMessage.text}</div>}
 

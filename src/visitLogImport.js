@@ -39,7 +39,13 @@ function recordsFromRows(rows) {
   const records = []
   for (let i = 1; i < rows.length; i += 1) {
     const r = rows[i]
-    records.push({ office: String(r[idx.office] || '').trim(), rep: String(r[idx.rep] || '').trim(), content: String(r[idx.content] || '').trim(), date: String(r[idx.date] || '').trim() })
+    records.push({
+      office: String(r[idx.office] || '').trim(),
+      // 担当名は「久保　匠史」のように姓名の間に全角/半角スペースが入るため、他のExcel取込と同様に除去して名寄せしやすくする。
+      rep: String(r[idx.rep] || '').trim().replace(/[\s　]+/g, ''),
+      content: String(r[idx.content] || '').trim(),
+      date: String(r[idx.date] || '').trim(),
+    })
   }
   return records
 }

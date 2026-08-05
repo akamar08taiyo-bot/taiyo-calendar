@@ -367,6 +367,35 @@ export function applyImportedSalesFigures(fiscalYear, monthKey, officeDataMap) {
   return summary
 }
 
+// 訪問ログ取込結果（{ [officeName]: { [repName]: { [fiscalYear]: { [monthKey]: { visit } } } } }）を反映する。
+// 担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、どちらも該当しなければ新しい担当者として追加する。
+export function applyImportedVisitFigures(officeDataMap) {
+  const summary = { updated: [], created: [] }
+  for (const [officeName, repsByYear] of Object.entries(officeDataMap)) {
+    for (const [parsedName, years] of Object.entries(repsByYear)) {
+      let report = getOfficeReport(officeName)
+      let matched = report.repNames.find((n) => n === parsedName)
+        || report.repNames.find((n) => n.startsWith(parsedName) || parsedName.startsWith(n))
+      let created = false
+      for (const [fiscalYearStr, months] of Object.entries(years)) {
+        const fiscalYear = Number(fiscalYearStr)
+        if (!matched) {
+          addRep(officeName, fiscalYear, parsedName)
+          matched = parsedName
+          created = true
+        }
+        for (const [monthKey, bucket] of Object.entries(months)) {
+          report = getOfficeReport(officeName)
+          const current = getYearMonths(report, fiscalYear)[monthKey]?.reps?.[matched]?.visit || emptyVisit()
+          updateRepEntry(officeName, fiscalYear, monthKey, matched, { visit: { ...current, ...bucket.visit } })
+        }
+      }
+      summary[created ? 'created' : 'updated'].push(`${officeName} / ${matched}`)
+    }
+  }
+  return summary
+}
+
 // その年度・月までの累計（4月からmonthKeyまでの各reps合算値）を計算する。
 // 年度累計そのものを表すフィールド（担当別売上実績の「年度累計」列からそのまま入る値）は、
 // 月をまたいで合算すると二重計上になるため、対象月時点の値をそのまま使う。
