@@ -876,13 +876,13 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 /* ============================== 営業月報（SalesReportView） ============================== */
 .srv-root { display: flex; flex-direction: column; gap: 14px; }
 .srv-sub-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
-.srv-sub-tabs button { height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: #52667a; font-size: 12px; font-weight: 800; cursor: pointer; }
+.srv-sub-tabs button { height: 44px; padding: 0 18px; border: 0; border-radius: 9px; background: transparent; color: #52667a; font-size: 15px; font-weight: 800; cursor: pointer; }
 .srv-sub-tabs button.active { background: var(--teal); color: #fff; }
 .srv-panel { display: flex; flex-direction: column; gap: 14px; }
-.srv-month-switch { display: flex; gap: 4px; flex-wrap: wrap; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
-.srv-month-switch button { height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #52667a; font-size: 12px; font-weight: 800; cursor: pointer; }
+.srv-month-switch { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.srv-month-switch button { height: 42px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: #52667a; font-size: 16px; font-weight: 800; cursor: pointer; }
 .srv-month-switch button.active { background: var(--teal-soft); color: var(--teal-deep); }
-.srv-month-title { color: var(--navy); font-size: 16px; font-weight: 900; }
+.srv-month-title { color: var(--navy); font-size: 19px; font-weight: 900; }
 .srv-card { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(20,52,82,.035); display: flex; flex-direction: column; gap: 10px; }
 .srv-card > b { color: var(--navy); font-size: 13px; }
 .srv-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -897,6 +897,8 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .srv-rep-name { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
 .srv-rep-remove { border: 0; background: none; color: #b0435a; font-weight: 900; cursor: pointer; font-size: 13px; padding: 0 3px; }
 .srv-calc { font-weight: 800; color: var(--teal-deep); background: #f7fbff; }
+.srv-visit-total-col { border-right: 3px solid var(--teal) !important; }
+th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
 .srv-total-row th, .srv-total-row td { background: #eef7f6; font-weight: 900; color: var(--navy); }
 .srv-empty { color: #8a9bab; padding: 10px; }
 .srv-num-input { height: 28px; padding: 0 4px; border: 1px solid var(--line-strong); border-radius: 6px; text-align: right; font-size: 11px; font-weight: 700; color: var(--navy); }
@@ -913,9 +915,9 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .srv-kv-grid { display: grid; grid-template-columns: auto auto; gap: 5px 14px; font-size: 12px; }
 .srv-kv-grid span { color: #52667a; font-weight: 700; }
 .srv-kv-grid b { color: var(--navy); text-align: right; }
-.srv-mini-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
-.srv-mini-table th, .srv-mini-table td { border: 1px solid var(--line); padding: 4px 6px; text-align: center; }
-.srv-mini-table thead th { background: var(--teal-soft); color: var(--teal-deep); }
+.srv-mini-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+.srv-mini-table th, .srv-mini-table td { border: 1px solid var(--line); padding: 8px 10px; text-align: center; }
+.srv-mini-table thead th { background: var(--teal-soft); color: var(--teal-deep); font-size: 13px; }
 .srv-mini-table td:first-child { text-align: left; font-weight: 700; }
 .srv-detail-form { display: flex; flex-direction: column; gap: 16px; }
 .srv-detail-block { display: flex; flex-direction: column; gap: 6px; }
@@ -956,9 +958,9 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 
 .srv-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .srv-stat { padding: 16px 18px; border: 1px solid var(--line); border-top: 3px solid #cbd9e6; border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(20,52,82,.04); }
-.srv-stat > span { display: block; color: #445465; font-size: 12px; font-weight: 800; }
-.srv-stat > strong { display: block; margin-top: 10px; color: var(--navy); font-size: 30px; font-weight: 900; letter-spacing: -.03em; }
-.srv-stat > strong em { margin-left: 5px; color: #5c6f80; font-size: 13px; font-style: normal; font-weight: 800; }
+.srv-stat > span { display: block; color: #445465; font-size: 14px; font-weight: 800; }
+.srv-stat > strong { display: block; margin-top: 10px; color: var(--navy); font-size: 32px; font-weight: 900; letter-spacing: -.03em; }
+.srv-stat > strong em { margin-left: 5px; color: #5c6f80; font-size: 14px; font-style: normal; font-weight: 800; }
 .srv-stat.accent { border-top-color: var(--teal); }
 .srv-stat.accent > strong { color: var(--teal-deep); }
 .srv-stat.plus { border-top-color: #0f9f8f; }
@@ -982,10 +984,58 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .srv-big-textarea { width: 100%; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; font: inherit; font-size: 14px; line-height: 1.7; color: var(--navy); resize: vertical; }
 .srv-big-textarea:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(7,139,142,.13); }
 
-.srv-table-lg { font-size: 13px; }
-.srv-table-lg th, .srv-table-lg td { padding: 9px 10px; }
-.srv-mini-lg { font-size: 13px; }
-.srv-mini-lg th, .srv-mini-lg td { padding: 9px 10px; }
+.srv-table-lg { font-size: 15px; }
+.srv-table-lg th, .srv-table-lg td { padding: 11px 13px; }
+.srv-mini-lg { font-size: 16px; }
+.srv-mini-lg th, .srv-mini-lg td { padding: 12px 14px; }
+.srv-mini-lg thead th { font-size: 14px; }
 .srv-input-table td { padding: 6px 6px; }
 .srv-input-table .srv-big-input { height: 42px; font-size: 16px; width: 100%; }
 .srv-row-strong td { background: #f7fbff; font-weight: 900; color: var(--navy); }
+
+/* ---------- 印刷／PDF保存バー ---------- */
+.srv-print-bar { display: flex; gap: 10px; margin: -6px 0 4px; }
+.srv-print-bar button { height: 38px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: #3c4d5f; font-size: 13px; font-weight: 800; cursor: pointer; }
+.srv-print-bar button:hover { border-color: var(--teal); color: var(--teal-deep); }
+.srv-print-bar button:disabled { opacity: .6; cursor: default; }
+
+@media print {
+  body.srv-printing .sidebar, body.srv-printing .topbar { display: none !important; }
+  body.srv-printing .page-content { padding: 0 !important; }
+  body.srv-printing .srv-sub-tabs, body.srv-printing .srv-month-switch, body.srv-printing .srv-rep-tabs,
+  body.srv-printing .srv-import-bar, body.srv-printing .srv-import-msg, body.srv-printing .srv-print-bar,
+  body.srv-printing .srv-rep-delete-btn, body.srv-printing .srv-add-rep, body.srv-printing .srv-goal-block > button,
+  body.srv-printing .srv-rep-remove { display: none !important; }
+  body.srv-printing .srv-big-input, body.srv-printing .srv-num-input, body.srv-printing .srv-text-input,
+  body.srv-printing .srv-big-textarea, body.srv-printing .srv-visit-input {
+    border: 1px solid #ccc !important; color: #000 !important;
+  }
+  body.srv-printing .srv-card { box-shadow: none !important; page-break-inside: avoid; }
+}
+
+/* ---------- Excel取込バー ---------- */
+.srv-import-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.srv-import-btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border: 1px solid var(--teal); border-radius: 10px;
+  background: #eef7f6; color: var(--teal-deep); font-size: 13px; font-weight: 800; cursor: pointer; transition: .15s; }
+.srv-import-btn:hover { background: var(--teal); color: #fff; }
+.srv-import-hint { color: #6b7d8f; font-size: 12px; }
+.srv-import-msg { margin-top: 8px; padding: 10px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; }
+.srv-import-msg.ok { background: #eef9f3; border: 1px solid #b8e2c8; color: #1c6b42; }
+.srv-import-msg.error { background: #fdeeee; border: 1px solid #f0bcbc; color: #a33232; }
+
+/* ---------- 訪問実績：横長の一覧表（元のExcelに近い見た目） ---------- */
+.srv-visit-table { border-collapse: collapse; white-space: nowrap; }
+.srv-visit-table th, .srv-visit-table td { border: 1px solid var(--line); padding: 10px 8px; text-align: center; }
+.srv-visit-table thead tr:first-child th.srv-visit-group-th { background: var(--teal-deep); color: #fff; font-size: 14px; font-weight: 900; }
+.srv-visit-table thead tr:last-child th { background: #eef7f6; color: var(--teal-deep); font-size: 14px; font-weight: 800; }
+.srv-visit-input { width: 78px; height: 44px; border: 1px solid var(--line-strong); border-radius: 9px; text-align: right;
+  font-size: 18px; font-weight: 800; color: var(--navy); padding: 0 8px; outline: 0; }
+.srv-visit-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(7,139,142,.13); }
+
+/* ---------- 実績・予算ブロック（レンタル／住宅改修／商品販売／物販合計） ---------- */
+.srv-sales-block-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.srv-sales-block { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdfe; display: flex; flex-direction: column; gap: 10px; }
+.srv-sales-sub { padding-top: 10px; border-top: 1px dashed var(--line-strong); display: flex; flex-direction: column; gap: 8px; }
+.srv-sales-sub-row { display: flex; align-items: center; justify-content: space-between; font-size: 15px; color: #445465; }
+.srv-sales-sub-row b { color: var(--navy); font-size: 18px; }
+.srv-inline-calc.small { margin-top: 0; padding: 8px 10px; font-size: 14px; }

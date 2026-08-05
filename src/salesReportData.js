@@ -256,6 +256,32 @@ export function updateRepEntry(officeName, monthKey, repName, patch) {
   })
 }
 
+// Excel取込結果（{ [officeName]: { reps: { [repName]: 部分的なsalesFigures } } }）を
+// 選択中の月に反映する。担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、
+// どちらも該当しなければ新しい担当者として追加する。
+export function applyImportedSalesFigures(monthKey, officeDataMap) {
+  const summary = { updated: [], created: [] }
+  for (const [officeName, entry] of Object.entries(officeDataMap)) {
+    const reps = entry.reps || {}
+    for (const [parsedName, patch] of Object.entries(reps)) {
+      let report = getOfficeReport(officeName)
+      let matched = report.repNames.find((n) => n === parsedName)
+        || report.repNames.find((n) => n.startsWith(parsedName) || parsedName.startsWith(n))
+      let created = false
+      if (!matched) {
+        addRep(officeName, parsedName)
+        matched = parsedName
+        created = true
+      }
+      report = getOfficeReport(officeName)
+      const current = report.months[monthKey]?.reps?.[matched]?.sales || emptySalesFigures()
+      updateRepEntry(officeName, monthKey, matched, { sales: { ...current, ...patch } })
+      summary[created ? 'created' : 'updated'].push(`${officeName} / ${matched}`)
+    }
+  }
+  return summary
+}
+
 // その月までの累計（4月からmonthKeyまでの各reps合算値）を計算する。
 export function cumulativeSalesThrough(report, monthKey) {
   const idx = MONTH_KEYS.indexOf(monthKey)

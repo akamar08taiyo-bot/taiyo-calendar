@@ -52,3 +52,39 @@ export async function downloadCalendarPdf({ month, officeName, staffName }) {
   const [year, monthNumber] = month.split('-')
   pdf.save(safeFileName(`${year}年${Number(monthNumber)}月_${officeName}_${staffName}_居宅カレンダー.pdf`))
 }
+
+// 任意のDOM要素をA4縦のPDFに変換する（縦に長い内容は自動で複数ページに分割する）。
+export async function downloadElementPdf({ selector, fileName }) {
+  const source = document.querySelector(selector)
+  if (!source) throw new Error('PDFにする内容が見つかりませんでした。')
+
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
+  if (document.fonts?.ready) await document.fonts.ready
+
+  const canvas = await html2canvas(source, { backgroundColor: '#ffffff', logging: false, scale: 2, useCORS: true })
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 8
+  const usableWidth = pageWidth - margin * 2
+  const usableHeight = pageHeight - margin * 2
+  const ratio = usableWidth / canvas.width
+  const pageHeightPx = Math.max(1, Math.floor(usableHeight / ratio))
+  const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx))
+
+  for (let index = 0; index < totalPages; index += 1) {
+    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - index * pageHeightPx)
+    const sliceCanvas = document.createElement('canvas')
+    sliceCanvas.width = canvas.width
+    sliceCanvas.height = sliceHeightPx
+    const ctx = sliceCanvas.getContext('2d')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height)
+    ctx.drawImage(canvas, 0, index * pageHeightPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx)
+    const imageHeightMm = sliceHeightPx * ratio
+    if (index > 0) pdf.addPage('a4', 'portrait')
+    pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.94), 'JPEG', margin, margin, usableWidth, imageHeightMm, undefined, 'FAST')
+  }
+
+  pdf.save(safeFileName(fileName))
+}
