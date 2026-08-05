@@ -7,7 +7,7 @@ import {
   HANBAI_ITEMS, emptyHanbaiUchiwake, sumHanbaiUchiwake,
   emptyTarget,
   getOfficeReport, updateOfficeReport, updateRepEntry, addRep, removeRep,
-  applyImportedSalesFigures, applyImportedVisitFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
+  applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedVisitFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
 } from '../salesReportData'
 import { parseSalesWorkbookAuto } from '../salesReportExcelImport'
 import { parseVisitLogWorkbook } from '../visitLogImport'
@@ -423,33 +423,50 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
     refresh()
   }
 
+  async function importOneFile(file) {
+    if (/\.(xlsx|xlsm)$/i.test(file.name)) {
+      const result = await parseSalesWorkbookAuto(file)
+      if (result.type === 'status') {
+        const targetYear = result.fiscalYear ?? fiscalYear
+        const targetMonth = result.monthKey ?? monthKey
+        const summary = applyImportedSalesFigures(targetYear, targetMonth, result.data)
+        const total = summary.updated.length + summary.created.length
+        const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
+        return `売上状況報告書：${targetYear}年度${MONTH_LABELS[targetMonth]}分を${total}件の担当者に反映${note}`
+      }
+      const targetYear = result.fiscalYear ?? fiscalYear
+      const summary = applyImportedSalesFiguresMultiMonth(targetYear, result.data)
+      const total = summary.updated.length + summary.created.length
+      const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
+      return `担当別売上実績：${targetYear}年度${summary.months.map((k) => MONTH_LABELS[k]).join('・')}分を${total}件の担当者に反映${note}`
+    }
+    const result = await parseVisitLogWorkbook(file)
+    const summary = applyImportedVisitFigures(result.offices)
+    const total = summary.updated.length + summary.created.length
+    const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
+    return `訪問ログ：${result.matchedRows}/${result.totalRows}件を${total}件の担当者に反映${note}`
+  }
+
   async function handleImportFile(e) {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files || [])
     e.target.value = ''
-    if (!file) return
+    if (!files.length) return
     setImportBusy(true)
     setImportMessage(null)
-    try {
-      if (/\.(xlsx|xlsm)$/i.test(file.name)) {
-        const { data } = await parseSalesWorkbookAuto(file, monthKey)
-        const summary = applyImportedSalesFigures(fiscalYear, monthKey, data)
-        refresh()
-        const total = summary.updated.length + summary.created.length
-        const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
-        setImportMessage({ type: 'ok', text: `${MONTH_LABELS[monthKey]}分を${total}件の担当者に反映しました。${note}` })
-      } else {
-        const result = await parseVisitLogWorkbook(file)
-        const summary = applyImportedVisitFigures(result.offices)
-        refresh()
-        const total = summary.updated.length + summary.created.length
-        const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
-        setImportMessage({ type: 'ok', text: `訪問ログ${result.matchedRows}/${result.totalRows}件を${total}件の担当者に反映しました。${note}` })
+    const results = []
+    const errors = []
+    for (const file of files) {
+      try {
+        results.push(await importOneFile(file))
+      } catch (err) {
+        errors.push(`${file.name}：${err.message || '取り込みに失敗しました。'}`)
       }
-    } catch (err) {
-      setImportMessage({ type: 'error', text: err.message || '取り込みに失敗しました。' })
-    } finally {
-      setImportBusy(false)
     }
+    refresh()
+    setImportBusy(false)
+    if (results.length && !errors.length) setImportMessage({ type: 'ok', text: results.join('／') })
+    else if (results.length && errors.length) setImportMessage({ type: 'ok', text: `${results.join('／')}\n（一部失敗：${errors.join('、')}）` })
+    else setImportMessage({ type: 'error', text: errors.join('、') })
   }
 
   const currentEntry = activeRep !== '__office__' ? (monthData.reps[activeRep] || null) : null
@@ -470,10 +487,10 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
 
       <div className="srv-import-bar">
         <label className="srv-import-btn">
-          {importBusy ? '取り込み中…' : 'Excelを取り込む（売上状況報告書／担当別売上実績／訪問ログ）'}
-          <input type="file" accept=".xlsx,.xlsm,.xls,.csv" disabled={importBusy} onChange={handleImportFile} hidden />
+          {importBusy ? '取り込み中…' : 'Excelを取り込む（売上状況報告書／担当別売上実績／訪問ログ・複数選択可）'}
+          <input type="file" accept=".xlsx,.xlsm,.xls,.csv" multiple disabled={importBusy} onChange={handleImportFile} hidden />
         </label>
-        <span className="srv-import-hint">売上系ファイルは{fiscalYear}年度{MONTH_LABELS[monthKey]}分として、訪問ログは日付から年度・月を自動判定して、全営業所の該当データをまとめて反映します</span>
+        <span className="srv-import-hint">各ファイルの年度・月はファイルの中身から自動判定します（複数ファイルをまとめて選択できます）</span>
       </div>
       {importMessage && <div className={`srv-import-msg ${importMessage.type}`}>{importMessage.text}</div>}
 
@@ -560,7 +577,7 @@ function BudgetTableTab({ officeName, report, refresh }) {
       <tr>
         <th>{label}</th>
         {values.map((v, i) => (
-          <td key={i}><NumberCell value={v} onChange={(val) => { const next = [...values]; next[i] = val; onChange(next) }} width={56} /></td>
+          <td key={i}><NumberCell value={v} onChange={(val) => { const next = [...values]; next[i] = val; onChange(next) }} width={68} /></td>
         ))}
         <td className="srv-calc">{yen(values.reduce((s, v) => s + Number(v || 0), 0))}</td>
       </tr>
@@ -571,7 +588,7 @@ function BudgetTableTab({ officeName, report, refresh }) {
       <div className="srv-card">
         <b>{title}</b>
         <div className="srv-table-scroll">
-          <table className="srv-table">
+          <table className="srv-table srv-table-lg">
             <thead><tr><th></th>{MONTH_KEYS.map((k) => <th key={k}>{MONTH_LABELS[k]}</th>)}<th>計</th></tr></thead>
             <tbody>
               <MonthlyRow label="レンタル売上予算" values={data.rentalMonthly} onChange={(v) => onChange({ rentalMonthly: v })} />
@@ -582,8 +599,8 @@ function BudgetTableTab({ officeName, report, refresh }) {
           </table>
         </div>
         <div className="srv-field-grid" style={{ marginTop: 8 }}>
-          <label>前年度消耗品売上実績（月平均）<NumberCell value={data.shouhinhinLastYearAvg} onChange={(v) => onChange({ shouhinhinLastYearAvg: v })} width={90} /></label>
-          <label>本年度消耗品売上目標（月平均）<NumberCell value={data.shouhinhinTargetAvg} onChange={(v) => onChange({ shouhinhinTargetAvg: v })} width={90} /></label>
+          <label>前年度消耗品売上実績（月平均）<NumberCell value={data.shouhinhinLastYearAvg} onChange={(v) => onChange({ shouhinhinLastYearAvg: v })} width={100} /></label>
+          <label>本年度消耗品売上目標（月平均）<NumberCell value={data.shouhinhinTargetAvg} onChange={(v) => onChange({ shouhinhinTargetAvg: v })} width={100} /></label>
         </div>
       </div>
     )
@@ -606,11 +623,11 @@ function InterviewTab({ officeName, report, refresh }) {
     <div className="srv-panel">
       <div className="srv-card">
         <div className="srv-detail-title">■前年度下期面談記録</div>
-        <textarea rows={10} value={report.interviews.shimoki} onChange={(e) => patch({ shimoki: e.target.value })} />
+        <textarea className="srv-big-textarea" rows={10} value={report.interviews.shimoki} onChange={(e) => patch({ shimoki: e.target.value })} />
       </div>
       <div className="srv-card">
         <div className="srv-detail-title">■上期面談記録</div>
-        <textarea rows={10} value={report.interviews.kamiki} onChange={(e) => patch({ kamiki: e.target.value })} />
+        <textarea className="srv-big-textarea" rows={10} value={report.interviews.kamiki} onChange={(e) => patch({ kamiki: e.target.value })} />
       </div>
     </div>
   )

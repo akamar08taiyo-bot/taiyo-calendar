@@ -345,54 +345,95 @@ export function updateRepEntry(officeName, fiscalYear, monthKey, repName, patch)
 // Excel取込結果（{ [officeName]: { reps: { [repName]: 部分的なsalesFigures } } }）を
 // 選択中の年度・月に反映する。担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、
 // どちらも該当しなければ新しい担当者として追加する。
+// 担当者名を既存のrepNamesと照合する。完全一致→前方一致（姓のみのデータに対応）の順で探し、
+// 見つからなければrepNamesに追加した上で新しい名前を返す。repNamesはこの関数の中でのみ変更する
+// （呼び出し側は返り値のrepNamesを使うこと）。
+function resolveRepName(repNames, parsedName) {
+  const matched = repNames.find((n) => n === parsedName) || repNames.find((n) => n.startsWith(parsedName) || parsedName.startsWith(n))
+  if (matched) return { repNames, matched, created: false }
+  return { repNames: [...repNames, parsedName], matched: parsedName, created: true }
+}
+
+// officeごとに1回のload/saveでまとめて反映し、担当者数×月数ぶんの個別書き込み（毎回のJSON全体シリアライズ）を避ける。
 export function applyImportedSalesFigures(fiscalYear, monthKey, officeDataMap) {
   const summary = { updated: [], created: [] }
   for (const [officeName, entry] of Object.entries(officeDataMap)) {
-    const reps = entry.reps || {}
-    for (const [parsedName, patch] of Object.entries(reps)) {
-      let report = getOfficeReport(officeName)
-      let matched = report.repNames.find((n) => n === parsedName)
-        || report.repNames.find((n) => n.startsWith(parsedName) || parsedName.startsWith(n))
-      let created = false
-      if (!matched) {
-        addRep(officeName, fiscalYear, parsedName)
-        matched = parsedName
-        created = true
+    const repsData = entry.reps || {}
+    updateOfficeReport(officeName, (report) => {
+      let repNames = report.repNames
+      const monthsByYear = { ...report.monthsByYear }
+      const months = { ...getYearMonths(report, fiscalYear) }
+      const monthData = months[monthKey] || { reps: {} }
+      const nextReps = { ...monthData.reps }
+      for (const [parsedName, patch] of Object.entries(repsData)) {
+        const resolved = resolveRepName(repNames, parsedName)
+        repNames = resolved.repNames
+        const current = nextReps[resolved.matched] || defaultRepEntry()
+        nextReps[resolved.matched] = { ...current, sales: { ...(current.sales || emptySalesFigures()), ...patch } }
+        summary[resolved.created ? 'created' : 'updated'].push(`${officeName} / ${resolved.matched}`)
       }
-      report = getOfficeReport(officeName)
-      const current = getYearMonths(report, fiscalYear)[monthKey]?.reps?.[matched]?.sales || emptySalesFigures()
-      updateRepEntry(officeName, fiscalYear, monthKey, matched, { sales: { ...current, ...patch } })
-      summary[created ? 'created' : 'updated'].push(`${officeName} / ${matched}`)
-    }
+      months[monthKey] = { reps: nextReps }
+      monthsByYear[fiscalYear] = months
+      return { ...report, repNames, monthsByYear }
+    })
   }
   return summary
 }
 
+// 担当別売上実績のように、1ファイルに複数月分（{ [officeName]: { reps: { [repName]: { [monthKey]: 部分的なsalesFigures } } } }）
+// が入っている取込結果を反映する。担当者名の照合ルールはapplyImportedSalesFiguresと同じ。officeごとに1回のload/saveでまとめる。
+export function applyImportedSalesFiguresMultiMonth(fiscalYear, officeDataMap) {
+  const summary = { updated: [], created: [], months: new Set() }
+  for (const [officeName, entry] of Object.entries(officeDataMap)) {
+    const repsData = entry.reps || {}
+    updateOfficeReport(officeName, (report) => {
+      let repNames = report.repNames
+      const monthsByYear = { ...report.monthsByYear }
+      const months = { ...getYearMonths(report, fiscalYear) }
+      for (const [parsedName, byMonth] of Object.entries(repsData)) {
+        const resolved = resolveRepName(repNames, parsedName)
+        repNames = resolved.repNames
+        for (const [monthKey, patch] of Object.entries(byMonth)) {
+          const monthData = months[monthKey] || { reps: {} }
+          const current = monthData.reps[resolved.matched] || defaultRepEntry()
+          months[monthKey] = { reps: { ...monthData.reps, [resolved.matched]: { ...current, sales: { ...(current.sales || emptySalesFigures()), ...patch } } } }
+          summary.months.add(monthKey)
+        }
+        summary[resolved.created ? 'created' : 'updated'].push(`${officeName} / ${resolved.matched}`)
+      }
+      monthsByYear[fiscalYear] = months
+      return { ...report, repNames, monthsByYear }
+    })
+  }
+  return { updated: summary.updated, created: summary.created, months: [...summary.months].sort() }
+}
+
 // 訪問ログ取込結果（{ [officeName]: { [repName]: { [fiscalYear]: { [monthKey]: { visit } } } } }）を反映する。
 // 担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、どちらも該当しなければ新しい担当者として追加する。
+// officeごとに1回のload/saveでまとめて反映する。
 export function applyImportedVisitFigures(officeDataMap) {
   const summary = { updated: [], created: [] }
   for (const [officeName, repsByYear] of Object.entries(officeDataMap)) {
-    for (const [parsedName, years] of Object.entries(repsByYear)) {
-      let report = getOfficeReport(officeName)
-      let matched = report.repNames.find((n) => n === parsedName)
-        || report.repNames.find((n) => n.startsWith(parsedName) || parsedName.startsWith(n))
-      let created = false
-      for (const [fiscalYearStr, months] of Object.entries(years)) {
-        const fiscalYear = Number(fiscalYearStr)
-        if (!matched) {
-          addRep(officeName, fiscalYear, parsedName)
-          matched = parsedName
-          created = true
+    updateOfficeReport(officeName, (report) => {
+      let repNames = report.repNames
+      const monthsByYear = { ...report.monthsByYear }
+      for (const [parsedName, years] of Object.entries(repsByYear)) {
+        const resolved = resolveRepName(repNames, parsedName)
+        repNames = resolved.repNames
+        for (const [fiscalYearStr, monthsData] of Object.entries(years)) {
+          const fiscalYear = Number(fiscalYearStr)
+          const months = { ...(monthsByYear[fiscalYear] || getYearMonths({ monthsByYear }, fiscalYear)) }
+          for (const [monthKey, bucket] of Object.entries(monthsData)) {
+            const monthData = months[monthKey] || { reps: {} }
+            const current = monthData.reps[resolved.matched] || defaultRepEntry()
+            months[monthKey] = { reps: { ...monthData.reps, [resolved.matched]: { ...current, visit: { ...(current.visit || emptyVisit()), ...bucket.visit } } } }
+          }
+          monthsByYear[fiscalYear] = months
         }
-        for (const [monthKey, bucket] of Object.entries(months)) {
-          report = getOfficeReport(officeName)
-          const current = getYearMonths(report, fiscalYear)[monthKey]?.reps?.[matched]?.visit || emptyVisit()
-          updateRepEntry(officeName, fiscalYear, monthKey, matched, { visit: { ...current, ...bucket.visit } })
-        }
+        summary[resolved.created ? 'created' : 'updated'].push(`${officeName} / ${resolved.matched}`)
       }
-      summary[created ? 'created' : 'updated'].push(`${officeName} / ${matched}`)
-    }
+      return { ...report, repNames, monthsByYear }
+    })
   }
   return summary
 }

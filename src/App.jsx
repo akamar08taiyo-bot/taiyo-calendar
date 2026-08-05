@@ -371,7 +371,7 @@ export default function App() {
   const printStaffName = useMemo(() => staff.find((person) => person.id === printStaffId)?.name || '', [staff, printStaffId])
 
   if (showStartScreen) return <InitialImportScreen onImport={handleInitialImport} onContinue={() => setShowStartScreen(false)} hasSavedData={!needsInitialImport} busy={initialImportBusy} error={initialImportError}/>
-  if (booting) return <div className="boot-screen"><span className="spinner"/><strong>居宅カレンダーを起動しています…</strong></div>
+  if (booting) return <div className="boot-screen"><span className="spinner"/><strong>営業管理を起動しています…</strong></div>
   if (!session) return <LoginScreen offices={offices} onLogin={handleLogin} busy={loginBusy} error={loginError}/>
 
   let pageContent
@@ -387,13 +387,13 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
-      <div className="sidebar-brand"><span className="brand-symbol">居</span><span>居宅カレンダー</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
+      <div className="sidebar-brand"><span className="brand-symbol">営</span><span>営業管理</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
       <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => { setActiveTab('analysis'); setSidebarOpen(false) }}><Icon name="chart"/>実績分析</button><button className={activeTab === 'salesReport' ? 'active' : ''} onClick={() => { setActiveTab('salesReport'); setSidebarOpen(false) }}><Icon name="report"/>営業月報</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
       <div className="sidebar-bottom">{session.user.role === 'system_admin' && <button onClick={openSettings}><Icon name="settings"/>システム設定</button>}<div className="retention-note"><Icon name="info" size={16}/>訪問記録は5年以上保持</div><button onClick={logout}><Icon name="logout"/>ログアウト</button></div>
     </aside>
     {sidebarOpen && <button className="sidebar-scrim" aria-label="メニューを閉じる" onClick={() => setSidebarOpen(false)}/>} 
     <main className="main-content">
-      <header className="topbar"><button className="mobile-menu icon-button" onClick={() => setSidebarOpen(true)}><Icon name="menu"/></button><div className="mobile-brand"><span className="brand-symbol">居</span>居宅カレンダー</div><div className="office-context"><span>営業所</span><strong>{session.office.name}</strong></div><div className="topbar-spacer"/><div className="user-context"><Icon name="user"/><div><strong>{session.user.name}</strong><span>{roleLabel[session.user.role]}</span></div></div></header>
+      <header className="topbar"><button className="mobile-menu icon-button" onClick={() => setSidebarOpen(true)}><Icon name="menu"/></button><div className="mobile-brand"><span className="brand-symbol">営</span>営業管理</div><div className="office-context"><span>営業所</span><strong>{session.office.name}</strong></div><div className="topbar-spacer"/><div className="user-context"><Icon name="user"/><div><strong>{session.user.name}</strong><span>{roleLabel[session.user.role]}</span></div></div></header>
       <div className="page-content">{pageContent}</div>
     </main>
     {dialog === 'import' && <ImportDialog state={importState} onFileSelect={selectImportFile} onPreview={previewImport} onConfirm={confirmImportAction} onClose={() => setDialog(null)}/>} 

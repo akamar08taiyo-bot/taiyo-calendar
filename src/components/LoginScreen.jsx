@@ -20,7 +20,7 @@ export function LoginScreen({ offices, onLogin, busy, error }) {
   const [form, setForm] = useState({ officeId: defaultOffice?.id || '' })
   return <main className="login-screen">
     <section className="login-card" aria-labelledby="login-title">
-      <div className="login-brand"><span className="brand-symbol">居</span><div><strong>居宅カレンダー</strong><span>居宅訪問記録・集計</span></div></div>
+      <div className="login-brand"><span className="brand-symbol">営</span><div><strong>営業管理</strong><span>居宅訪問記録・集計</span></div></div>
       <div className="login-rule"/>
       <div className="login-heading"><h1 id="login-title">営業所を選択</h1><p>利用する営業所を選んで居宅カレンダーを開きます。</p></div>
       <form className="login-form" onSubmit={(event) => { event.preventDefault(); onLogin(form) }}>

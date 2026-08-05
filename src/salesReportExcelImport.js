@@ -72,20 +72,33 @@ function parseSalesStatusSheet(sheet) {
       touGetsuKaishu: fromAmountCol('touGetsuKaishu'),
     }
   }
-  return reps_
+
+  // シート右上の「2026年7月1日～2026年7月31日　売上報告書」から年度・月を自動判定する。
+  const fiscalYear = Number(cellRaw(sheet.getRow(1), 1)) || null
+  const titleText = cellText(sheet.getRow(1), 4)
+  const monthMatch = titleText.match(/年(\d{1,2})月(\d{1,2})日/)
+  const monthKey = monthMatch ? String(Number(monthMatch[1])).padStart(2, '0') : null
+
+  return { fiscalYear, monthKey, reps: reps_ }
 }
 
 export async function parseSalesStatusWorkbook(file) {
   const workbook = await loadWorkbook(file)
   const result = {}
+  let fiscalYear = null
+  let monthKey = null
   for (const sheet of workbook.worksheets) {
     const m = sheet.name.match(/^レンタル個人売上状況報告書（(.+)）$/)
     if (!m) continue
-    const reps = parseSalesStatusSheet(sheet)
-    if (reps && Object.keys(reps).length) result[`${m[1]}営業所`] = { reps }
+    const parsed = parseSalesStatusSheet(sheet)
+    if (parsed && Object.keys(parsed.reps).length) {
+      result[`${m[1]}営業所`] = { reps: parsed.reps }
+      if (fiscalYear == null) fiscalYear = parsed.fiscalYear
+      if (monthKey == null) monthKey = parsed.monthKey
+    }
   }
   if (!Object.keys(result).length) throw new Error('「レンタル個人売上状況報告書（営業所名）」という名前のシートが見つかりませんでした。')
-  return result // { [officeName]: { reps: { [repName]: {8項目} } } }
+  return { fiscalYear, monthKey, offices: result } // offices: { [officeName]: { reps: { [repName]: {4項目} } } }
 }
 
 /* ---------- ②営業所／担当別売上実績（担当別売上実績シート：レンタル予算・実績の累計） ---------- */
@@ -93,30 +106,36 @@ function findRepPerformanceSheet(workbook) {
   return workbook.worksheets.find((s) => s.name === '担当別売上実績') || null
 }
 
-export async function parseRepPerformanceWorkbook(file, monthKey) {
+// 担当別売上実績シートは4月〜3月の12ヶ月分が横に並んでいる（1つのファイルに全月分が入っている）ため、
+// 選択中の月だけでなく、シートに存在する月をすべて一度に読み取る。
+export async function parseRepPerformanceWorkbook(file) {
   const workbook = await loadWorkbook(file)
   const sheet = findRepPerformanceSheet(workbook)
   if (!sheet) throw new Error('「担当別売上実績」という名前のシートが見つかりませんでした。')
 
-  const monthNum = Number(monthKey)
+  const fiscalYear = Number(cellRaw(sheet.getRow(1), 1)) || null
   const blockHeaderRow = sheet.getRow(3)
-  let tankiBudgetCol = null, tankiJissekiCol = null
-  let ruikeiBudgetCol = null, ruikeiJissekiCol = null
+  // monthNum(1-12) -> { tankiYosan, tankiJisseki, ruikeiYosan, ruikeiJisseki }
+  const monthCols = {}
   for (let col = 4; col <= sheet.columnCount; col++) {
     // 単月ブロックの見出しセルは「4月売上」という文字列ではなく、月の数値（4など）がそのまま入っており、
     // セルの表示形式（ユーザー定義書式）で「○月売上」に見せているだけ。同じ数値が予算/実績/予算差/達成率の
     // 4列にわたって入っているため、最初に見つかった列だけを採用する。
-    if (tankiBudgetCol == null) {
-      const raw = cellRaw(blockHeaderRow, col)
-      if (typeof raw === 'number' && raw === monthNum) { tankiBudgetCol = col; tankiJissekiCol = col + 1 }
+    const raw = cellRaw(blockHeaderRow, col)
+    if (typeof raw === 'number' && raw >= 1 && raw <= 12) {
+      if (!monthCols[raw]) monthCols[raw] = {}
+      if (monthCols[raw].tankiYosan == null) { monthCols[raw].tankiYosan = col; monthCols[raw].tankiJisseki = col + 1 }
     }
-    if (ruikeiBudgetCol == null) {
-      const label = cellText(blockHeaderRow, col)
-      if (new RegExp(`累計（${monthNum}月末時点）$`).test(label)) { ruikeiBudgetCol = col; ruikeiJissekiCol = col + 1 }
+    const label = cellText(blockHeaderRow, col)
+    const m = label.match(/累計（(\d+)月末時点）$/)
+    if (m) {
+      const mn = Number(m[1])
+      if (!monthCols[mn]) monthCols[mn] = {}
+      if (monthCols[mn].ruikeiYosan == null) { monthCols[mn].ruikeiYosan = col; monthCols[mn].ruikeiJisseki = col + 1 }
     }
-    if (tankiBudgetCol != null && ruikeiBudgetCol != null) break
   }
-  if (tankiBudgetCol == null || ruikeiBudgetCol == null) throw new Error(`このファイルに${monthNum}月のデータが見つかりませんでした。`)
+  const months = Object.entries(monthCols).filter(([, c]) => c.tankiYosan != null && c.ruikeiYosan != null)
+  if (!months.length) throw new Error('このファイルから月別データの列が見つかりませんでした。')
 
   // 各営業所ブロックの末尾には「予備」担当（空枠）や「営業所合計」「営業部合計」「本社売上」「総合計」といった
   // 小計・全社集計の行が、担当者行と同じ列構成で続く。実在の担当者行ではないため除外する。
@@ -141,51 +160,51 @@ export async function parseRepPerformanceWorkbook(file, monthKey) {
     const officeName = /営業所$/.test(currentOffice) ? currentOffice : `${currentOffice}営業所`
     if (!result[officeName]) result[officeName] = { reps: {} }
     if (!result[officeName].reps[currentRep]) result[officeName].reps[currentRep] = {}
-    const rep = result[officeName].reps[currentRep]
-    // シートの表示単位は千円だが、セルの生の値は円で入っている（表示形式で1000分の1に見せている）ため、ここで換算する。
-    const tankiYosan = Math.round(cellNumber(row, tankiBudgetCol) / 1000)
-    const tankiJisseki = Math.round(cellNumber(row, tankiJissekiCol) / 1000)
-    const ruikeiYosan = Math.round(cellNumber(row, ruikeiBudgetCol) / 1000)
-    const ruikeiJisseki = Math.round(cellNumber(row, ruikeiJissekiCol) / 1000)
-    if (itemKey === 'rental') {
-      rep.rentalYosanTanki = tankiYosan
-      rep.rentalJissekiTanki = tankiJisseki
-      rep.rentalYosanAtsumu = ruikeiYosan
-      rep.rentalJissekiAtsumu = ruikeiJisseki
-    } else if (itemKey === 'kaishuu') {
-      rep.kaishuuYosan = tankiYosan
-      rep.kaishuuUriage = tankiJisseki
-      rep.kaishuuYosanAtsumu = ruikeiYosan
-      rep.kaishuuUriageAtsumu = ruikeiJisseki
-    } else if (itemKey === 'hanbai') {
-      rep.hanbaiYosan = tankiYosan
-      rep.hanbaiUriage = tankiJisseki
-      rep.hanbaiYosanAtsumu = ruikeiYosan
-      rep.hanbaiUriageAtsumu = ruikeiJisseki
+    const repByMonth = result[officeName].reps[currentRep]
+
+    for (const [monthNumStr, c] of months) {
+      const monthKey = monthNumStr.padStart(2, '0')
+      if (!repByMonth[monthKey]) repByMonth[monthKey] = {}
+      const rep = repByMonth[monthKey]
+      // シートの表示単位は千円だが、セルの生の値は円で入っている（表示形式で1000分の1に見せている）ため、ここで換算する。
+      const tankiYosan = Math.round(cellNumber(row, c.tankiYosan) / 1000)
+      const tankiJisseki = Math.round(cellNumber(row, c.tankiJisseki) / 1000)
+      const ruikeiYosan = Math.round(cellNumber(row, c.ruikeiYosan) / 1000)
+      const ruikeiJisseki = Math.round(cellNumber(row, c.ruikeiJisseki) / 1000)
+      if (itemKey === 'rental') {
+        rep.rentalYosanTanki = tankiYosan
+        rep.rentalJissekiTanki = tankiJisseki
+        rep.rentalYosanAtsumu = ruikeiYosan
+        rep.rentalJissekiAtsumu = ruikeiJisseki
+      } else if (itemKey === 'kaishuu') {
+        rep.kaishuuYosan = tankiYosan
+        rep.kaishuuUriage = tankiJisseki
+        rep.kaishuuYosanAtsumu = ruikeiYosan
+        rep.kaishuuUriageAtsumu = ruikeiJisseki
+      } else if (itemKey === 'hanbai') {
+        rep.hanbaiYosan = tankiYosan
+        rep.hanbaiUriage = tankiJisseki
+        rep.hanbaiYosanAtsumu = ruikeiYosan
+        rep.hanbaiUriageAtsumu = ruikeiJisseki
+      }
     }
   }
   if (!Object.keys(result).length) throw new Error('担当者別の売上データが見つかりませんでした。')
-  return result // { [officeName]: { reps: { [repName]: {レンタル/住宅改修/商品販売の単月+年度累計} } } }
+  return { fiscalYear, offices: result } // offices: { [officeName]: { reps: { [repName]: { [monthKey]: {...} } } } }
 }
 
 // ファイルの中身を見て、どちらの形式かを自動判定して読み込む。
-export async function parseSalesWorkbookAuto(file, monthKey) {
+export async function parseSalesWorkbookAuto(file) {
   const workbook = await loadWorkbook(file)
   const hasStatusSheet = workbook.worksheets.some((s) => /^レンタル個人売上状況報告書（.+）$/.test(s.name))
   if (hasStatusSheet) {
-    const result = {}
-    for (const sheet of workbook.worksheets) {
-      const m = sheet.name.match(/^レンタル個人売上状況報告書（(.+)）$/)
-      if (!m) continue
-      const reps = parseSalesStatusSheet(sheet)
-      if (reps && Object.keys(reps).length) result[`${m[1]}営業所`] = { reps }
-    }
-    if (Object.keys(result).length) return { type: 'status', data: result }
+    const { fiscalYear, monthKey, offices } = await parseSalesStatusWorkbook(file)
+    return { type: 'status', fiscalYear, monthKey, data: offices }
   }
   const repSheet = findRepPerformanceSheet(workbook)
   if (repSheet) {
-    const data = await parseRepPerformanceWorkbook(file, monthKey)
-    return { type: 'performance', data }
+    const { fiscalYear, offices } = await parseRepPerformanceWorkbook(file)
+    return { type: 'performance', fiscalYear, data: offices }
   }
   throw new Error('対応している売上状況報告書・担当別売上実績のシートが見つかりませんでした。')
 }

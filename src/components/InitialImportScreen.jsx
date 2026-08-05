@@ -39,8 +39,8 @@ export function InitialImportScreen({ onImport, onContinue, hasSavedData, busy, 
   return <main className="login-screen initial-import-screen">
     <section className="login-card initial-import-card" aria-labelledby="initial-import-title">
       <div className="login-brand">
-        <span className="brand-symbol">居</span>
-        <div><strong>居宅カレンダー</strong><span>居宅訪問記録・集計</span></div>
+        <span className="brand-symbol">営</span>
+        <div><strong>営業管理</strong><span>居宅訪問記録・集計</span></div>
       </div>
       <div className="login-rule"/>
       <div className="login-heading">
