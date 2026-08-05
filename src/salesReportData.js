@@ -39,6 +39,7 @@ export function emptySalesFigures() {
     zenGetsuKaishu: 0,           // 前月回収金額（売上状況報告書）
     mokuhyou: 0,                 // 目標値（売上状況報告書）
     touGetsuKaishu: 0,           // 当月回収金額（売上状況報告書）
+    rentalYosanTanki: 0,         // レンタル予算（単月・担当別売上実績）
     rentalJissekiTanki: 0,       // レンタル実績値（単月・担当別売上実績）
     hanbaiYosan: 0,              // 商品販売予算（単月・担当別売上実績）
     hanbaiUriage: 0,             // 商品販売実績（単月・担当別売上実績）

@@ -80,9 +80,9 @@ function SalesSummaryBlock({ sales, monthLabel, fiscalYear }) {
   return (
     <div className="srv-sales-summary">
       <div className="srv-sales-group srv-sales-group-rental">
-        <div className="srv-tworow">
-          <div className="srv-tworow-cell"><span>レンタル実績値</span><strong>{yen(sales.rentalJissekiTanki)}<em>千円</em></strong></div>
-          <div className="srv-tworow-cell"><span>レンタル累計金額</span><strong>{yen(sales.rentalJissekiAtsumu)}<em>千円</em></strong></div>
+        <div className="srv-budget-row-3">
+          <BudgetCell label={`${monthLabel}レンタル実績値`} jisseki={sales.rentalJissekiTanki} yosan={sales.rentalYosanTanki} />
+          <BudgetCell label={`${fiscalYear}年度累計レンタル実績値`} jisseki={sales.rentalJissekiAtsumu} yosan={sales.rentalYosanAtsumu} />
         </div>
         <div className="srv-threerow">
           <div className="srv-threerow-cell"><span>{monthLabel}新規納品金額</span><strong>{yen(sales.rentalNouhinKeikei)}<em>千円</em></strong></div>
@@ -265,7 +265,7 @@ function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalY
         <VisitTable visit={visit} onChange={setVisit} />
       </div>
 
-      <div className="srv-card">
+      <div className="srv-card srv-print-hide">
         <b>月間売上・年度累計（千円・手入力）</b>
         <div className="srv-group">
           <div className="srv-group-title">レンタル（売上状況報告書）</div>
@@ -279,6 +279,7 @@ function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalY
         <div className="srv-group">
           <div className="srv-group-title">レンタル（担当別売上実績）</div>
           <div className="srv-big-grid">
+            <BigField label="レンタル予算（単月）" value={sales.rentalYosanTanki} onChange={(v) => setSales('rentalYosanTanki', v)} suffix="千円" />
             <BigField label="レンタル実績値（単月）" value={sales.rentalJissekiTanki} onChange={(v) => setSales('rentalJissekiTanki', v)} suffix="千円" />
             <BigField label="レンタル予算（年度累計）" value={sales.rentalYosanAtsumu} onChange={(v) => setSales('rentalYosanAtsumu', v)} suffix="千円" />
             <BigField label="レンタル実績（年度累計）" value={sales.rentalJissekiAtsumu} onChange={(v) => setSales('rentalJissekiAtsumu', v)} suffix="千円" />
@@ -304,6 +305,7 @@ function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalY
         </div>
       </div>
 
+      <div className="srv-print-onepage">
       <div className="srv-card">
         <b>販売内訳（千円）</b>
         <div className="srv-table-scroll">
@@ -400,6 +402,7 @@ function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalY
           <b>●次月対策</b>
           <textarea className="srv-big-textarea" rows={6} value={entry.jigetsuTaisaku} onChange={(e) => onChange({ jigetsuTaisaku: e.target.value })} placeholder="次月の対策を入力してください" />
         </div>
+      </div>
       </div>
     </div>
   )
@@ -789,7 +792,16 @@ export function SalesReportView({ officeName, fiscalYear: appFiscalYear }) {
 
   function handlePrint() {
     document.body.classList.add('srv-printing')
-    const cleanup = () => { document.body.classList.remove('srv-printing'); window.removeEventListener('afterprint', cleanup) }
+    // 訪問実績の横長表が収まるよう、印刷時だけA4横向きにする（他画面の印刷には影響させない）。
+    const pageStyle = document.createElement('style')
+    pageStyle.id = 'srv-print-page-style'
+    pageStyle.textContent = '@page { size: A4 landscape; margin: 10mm; }'
+    document.head.appendChild(pageStyle)
+    const cleanup = () => {
+      document.body.classList.remove('srv-printing')
+      pageStyle.remove()
+      window.removeEventListener('afterprint', cleanup)
+    }
     window.addEventListener('afterprint', cleanup)
     window.print()
   }

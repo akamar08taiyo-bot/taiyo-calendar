@@ -1008,12 +1008,35 @@ th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
   body.srv-printing .srv-sub-tabs, body.srv-printing .srv-month-switch, body.srv-printing .srv-year-switch, body.srv-printing .srv-rep-tabs,
   body.srv-printing .srv-import-bar, body.srv-printing .srv-import-msg, body.srv-printing .srv-print-bar,
   body.srv-printing .srv-rep-delete-btn, body.srv-printing .srv-add-rep, body.srv-printing .srv-goal-block > button,
-  body.srv-printing .srv-rep-remove { display: none !important; }
+  body.srv-printing .srv-rep-remove, body.srv-printing .srv-print-hide { display: none !important; }
   body.srv-printing .srv-big-input, body.srv-printing .srv-num-input, body.srv-printing .srv-text-input,
   body.srv-printing .srv-big-textarea, body.srv-printing .srv-visit-input {
     border: 1px solid #ccc !important; color: #000 !important;
   }
   body.srv-printing .srv-card { box-shadow: none !important; page-break-inside: avoid; }
+
+  /* 訪問実績の横長表：A4横向きの1ページ幅に収める */
+  body.srv-printing .srv-visit-table { font-size: 7px !important; }
+  body.srv-printing .srv-visit-table th, body.srv-printing .srv-visit-table td { padding: 2px 3px !important; }
+  body.srv-printing .srv-visit-input {
+    width: 100% !important; min-width: 0 !important; height: 16px !important; padding: 0 2px !important;
+    font-size: 7px !important; font-weight: 700 !important; text-align: center !important;
+  }
+  body.srv-printing .srv-visit-table thead tr:first-child th.srv-visit-group-th,
+  body.srv-printing .srv-visit-table thead tr:last-child th { font-size: 6.5px !important; padding: 2px !important; }
+
+  /* ターゲット先・目標実績・コメントは1ページにまとめる */
+  body.srv-printing .srv-print-onepage { page-break-before: always; page-break-inside: avoid; display: flex; flex-direction: column; gap: 6px; }
+  body.srv-printing .srv-print-onepage .srv-card { padding: 8px !important; gap: 6px !important; }
+  body.srv-printing .srv-print-onepage .srv-mini-table, body.srv-printing .srv-print-onepage .srv-big-grid { font-size: 10px !important; }
+  body.srv-printing .srv-print-onepage .srv-mini-table th, body.srv-printing .srv-print-onepage .srv-mini-table td { padding: 3px 4px !important; }
+  body.srv-printing .srv-print-onepage .srv-big-field { gap: 2px !important; }
+  body.srv-printing .srv-print-onepage .srv-big-label { font-size: 10px !important; }
+  body.srv-printing .srv-print-onepage .srv-big-input { height: 24px !important; font-size: 12px !important; }
+  body.srv-printing .srv-print-onepage .srv-group { padding-top: 6px !important; margin-top: 6px !important; }
+  body.srv-printing .srv-print-onepage .srv-group-title { font-size: 11px !important; margin-bottom: 4px !important; }
+  body.srv-printing .srv-print-onepage .srv-big-textarea { font-size: 10px !important; }
+  body.srv-printing .srv-print-onepage textarea { height: 70px !important; }
 }
 
 /* ---------- Excel取込バー ---------- */
@@ -1041,11 +1064,10 @@ th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
 .srv-sales-group-rental { background: #eef7f6; border: 1px solid #b8dfdd; }
 .srv-sales-group-other { background: #f4f0fb; border: 1px solid #d9cdf2; }
 
-.srv-tworow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.srv-tworow-cell, .srv-threerow-cell { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
-.srv-tworow-cell span, .srv-threerow-cell span { color: #445465; font-size: 13px; font-weight: 800; }
-.srv-tworow-cell strong, .srv-threerow-cell strong { color: var(--teal-deep); font-size: 20px; font-weight: 900; }
-.srv-tworow-cell strong em, .srv-threerow-cell strong em { margin-left: 4px; color: #5c6f80; font-size: 12px; font-style: normal; font-weight: 800; }
+.srv-threerow-cell { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.srv-threerow-cell span { color: #445465; font-size: 13px; font-weight: 800; }
+.srv-threerow-cell strong { color: var(--teal-deep); font-size: 20px; font-weight: 900; }
+.srv-threerow-cell strong em { margin-left: 4px; color: #5c6f80; font-size: 12px; font-style: normal; font-weight: 800; }
 .srv-threerow { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 
 .srv-budget-row-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }

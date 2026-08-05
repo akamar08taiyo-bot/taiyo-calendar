@@ -103,9 +103,18 @@ export async function parseRepPerformanceWorkbook(file, monthKey) {
   let tankiBudgetCol = null, tankiJissekiCol = null
   let ruikeiBudgetCol = null, ruikeiJissekiCol = null
   for (let col = 4; col <= sheet.columnCount; col++) {
-    const label = cellText(blockHeaderRow, col)
-    if (label === `${monthNum}月売上`) { tankiBudgetCol = col; tankiJissekiCol = col + 1 }
-    else if (new RegExp(`累計（${monthNum}月末時点）$`).test(label)) { ruikeiBudgetCol = col; ruikeiJissekiCol = col + 1 }
+    // 単月ブロックの見出しセルは「4月売上」という文字列ではなく、月の数値（4など）がそのまま入っており、
+    // セルの表示形式（ユーザー定義書式）で「○月売上」に見せているだけ。同じ数値が予算/実績/予算差/達成率の
+    // 4列にわたって入っているため、最初に見つかった列だけを採用する。
+    if (tankiBudgetCol == null) {
+      const raw = cellRaw(blockHeaderRow, col)
+      if (typeof raw === 'number' && raw === monthNum) { tankiBudgetCol = col; tankiJissekiCol = col + 1 }
+    }
+    if (ruikeiBudgetCol == null) {
+      const label = cellText(blockHeaderRow, col)
+      if (new RegExp(`累計（${monthNum}月末時点）$`).test(label)) { ruikeiBudgetCol = col; ruikeiJissekiCol = col + 1 }
+    }
+    if (tankiBudgetCol != null && ruikeiBudgetCol != null) break
   }
   if (tankiBudgetCol == null || ruikeiBudgetCol == null) throw new Error(`このファイルに${monthNum}月のデータが見つかりませんでした。`)
 
@@ -139,6 +148,7 @@ export async function parseRepPerformanceWorkbook(file, monthKey) {
     const ruikeiYosan = Math.round(cellNumber(row, ruikeiBudgetCol) / 1000)
     const ruikeiJisseki = Math.round(cellNumber(row, ruikeiJissekiCol) / 1000)
     if (itemKey === 'rental') {
+      rep.rentalYosanTanki = tankiYosan
       rep.rentalJissekiTanki = tankiJisseki
       rep.rentalYosanAtsumu = ruikeiYosan
       rep.rentalJissekiAtsumu = ruikeiJisseki
