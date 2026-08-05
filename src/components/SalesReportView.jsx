@@ -7,7 +7,7 @@ import {
   HANBAI_ITEMS, emptyHanbaiUchiwake, sumHanbaiUchiwake,
   emptyTarget,
   getOfficeReport, updateOfficeReport, updateRepEntry, addRep, removeRep,
-  cumulativeSalesThrough, applyImportedSalesFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
+  applyImportedSalesFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
 } from '../salesReportData'
 import { parseSalesWorkbookAuto } from '../salesReportExcelImport'
 import { downloadElementPdf } from '../pdf-export'
@@ -56,25 +56,50 @@ function BigField({ label, value, onChange, suffix }) {
   )
 }
 
-function SalesBlock({ label, jisseki, yosan, onJissekiChange, onYosanChange, readOnly }) {
+// 実績／予算／予算差を縦に3段並べた列。列見出し（実績値）と予算差だけ色付けする。
+function BudgetCell({ label, jisseki, yosan }) {
   const diff = (jisseki || 0) - (yosan || 0)
   return (
-    <div className="srv-sales-block">
-      {readOnly ? (
-        <div className="srv-stat accent">
-          <span>{label}</span>
-          <strong>{yen(jisseki)}<em>千円</em></strong>
+    <div className="srv-budget-cell">
+      <div className="srv-budget-line srv-budget-actual"><span>{label}</span><b>{yen(jisseki)}<em>千円</em></b></div>
+      <div className="srv-budget-line"><span>予算</span><b>{yen(yosan)}<em>千円</em></b></div>
+      <div className={`srv-budget-line srv-budget-diff ${diff >= 0 ? 'srv-plus' : 'srv-minus'}`}><span>予算差</span><b>{yen(diff)}<em>千円</em></b></div>
+    </div>
+  )
+}
+
+// 月報タブの数字ブロック：レンタル（実績値・累計・新規納品/前月回収/当月回収）と、
+// 住宅改修／商品販売／物販合計（単月・年度累計）を色分けして表示する。営業所合計・個人ページ共通。
+function SalesSummaryBlock({ sales, monthLabel, fiscalYear }) {
+  const hanbaiYosanKei = (sales.hanbaiYosan || 0) + (sales.kaishuuYosan || 0)
+  const hanbaiUriageKei = (sales.hanbaiUriage || 0) + (sales.kaishuuUriage || 0)
+  const hanbaiYosanKeiAtsumu = (sales.hanbaiYosanAtsumu || 0) + (sales.kaishuuYosanAtsumu || 0)
+  const hanbaiUriageKeiAtsumu = (sales.hanbaiUriageAtsumu || 0) + (sales.kaishuuUriageAtsumu || 0)
+
+  return (
+    <div className="srv-sales-summary">
+      <div className="srv-sales-group srv-sales-group-rental">
+        <div className="srv-tworow">
+          <div className="srv-tworow-cell"><span>レンタル実績値</span><strong>{yen(sales.rentalJissekiTanki)}<em>千円</em></strong></div>
+          <div className="srv-tworow-cell"><span>レンタル累計金額</span><strong>{yen(sales.rentalJissekiAtsumu)}<em>千円</em></strong></div>
         </div>
-      ) : (
-        <BigField label={label} value={jisseki} onChange={onJissekiChange} suffix="千円" />
-      )}
-      <div className="srv-sales-sub">
-        {readOnly ? (
-          <div className="srv-sales-sub-row"><span>予算</span><b>{yen(yosan)}千円</b></div>
-        ) : (
-          <BigField label="予算" value={yosan} onChange={onYosanChange} suffix="千円" />
-        )}
-        <div className={`srv-inline-calc small ${diff >= 0 ? 'srv-plus' : 'srv-minus'}`}>予算差 {yen(diff)}千円</div>
+        <div className="srv-threerow">
+          <div className="srv-threerow-cell"><span>{monthLabel}新規納品金額</span><strong>{yen(sales.rentalNouhinKeikei)}<em>千円</em></strong></div>
+          <div className="srv-threerow-cell"><span>前月回収金額</span><strong>{yen(sales.zenGetsuKaishu)}<em>千円</em></strong></div>
+          <div className="srv-threerow-cell"><span>当月回収金額</span><strong>{yen(sales.touGetsuKaishu)}<em>千円</em></strong></div>
+        </div>
+      </div>
+      <div className="srv-sales-group srv-sales-group-other">
+        <div className="srv-budget-row-3">
+          <BudgetCell label={`${monthLabel}住宅改修実績`} jisseki={sales.kaishuuUriage} yosan={sales.kaishuuYosan} />
+          <BudgetCell label={`${monthLabel}商品販売実績`} jisseki={sales.hanbaiUriage} yosan={sales.hanbaiYosan} />
+          <BudgetCell label={`${monthLabel}物販合計`} jisseki={hanbaiUriageKei} yosan={hanbaiYosanKei} />
+        </div>
+        <div className="srv-budget-row-3">
+          <BudgetCell label={`住宅改修${fiscalYear}年度累計金額`} jisseki={sales.kaishuuUriageAtsumu} yosan={sales.kaishuuYosanAtsumu} />
+          <BudgetCell label={`商品販売${fiscalYear}年度累計金額`} jisseki={sales.hanbaiUriageAtsumu} yosan={sales.hanbaiYosanAtsumu} />
+          <BudgetCell label={`物販${fiscalYear}年度累計金額`} jisseki={hanbaiUriageKeiAtsumu} yosan={hanbaiYosanKeiAtsumu} />
+        </div>
       </div>
     </div>
   )
@@ -131,11 +156,6 @@ function OfficeSummaryView({ report, fiscalYear, monthKey }) {
   const officeVisit = useMemo(() => sumVisits(reps.map((n) => monthData.reps[n]?.visit || emptyVisit())), [reps, monthData])
   const officeSales = useMemo(() => sumSalesFigures(reps.map((n) => monthData.reps[n]?.sales || emptySalesFigures())), [reps, monthData])
   const officeHanbai = useMemo(() => sumHanbaiUchiwake(reps.map((n) => monthData.reps[n]?.hanbai || emptyHanbaiUchiwake())), [reps, monthData])
-  const cumAll = useMemo(() => cumulativeSalesThrough(report, fiscalYear, monthKey), [report, fiscalYear, monthKey])
-  const officeCum = useMemo(() => sumSalesFigures(reps.map((n) => cumAll[n])), [reps, cumAll])
-
-  const hanbaiYosanKei = officeSales.hanbaiYosan + officeSales.kaishuuYosan
-  const hanbaiUriageKei = officeSales.hanbaiUriage + officeSales.kaishuuUriage
 
   const kaigoKei = reps.reduce((s, n) => s + (monthData.reps[n]?.kaigoRentalJisseki?.houkatsu || 0) + (monthData.reps[n]?.kaigoRentalJisseki?.kyotaku || 0), 0)
   const tokkaKei = reps.reduce((s, n) => s + (monthData.reps[n]?.tokkaBedJisseki?.houkatsu || 0) + (monthData.reps[n]?.tokkaBedJisseki?.kyotaku || 0), 0)
@@ -144,18 +164,7 @@ function OfficeSummaryView({ report, fiscalYear, monthKey }) {
 
   return (
     <div className="srv-panel">
-      <div className="srv-stat-row">
-        <StatCard label="訪問合計" value={num(visitTotal(officeVisit))} unit="件" tone="accent" />
-        <StatCard label="当月回収" value={yen(officeSales.touGetsuKaishu)} unit="千円" />
-        <StatCard label="レンタル実績（累計）" value={yen(officeCum.rentalJissekiAtsumu)} unit="千円" />
-      </div>
-
-      <div className="srv-sales-block-grid">
-        <SalesBlock label="レンタル実績" jisseki={officeSales.rentalNouhinKeikei} yosan={officeSales.mokuhyou} readOnly />
-        <SalesBlock label="住宅改修実績" jisseki={officeSales.kaishuuUriage} yosan={officeSales.kaishuuYosan} readOnly />
-        <SalesBlock label="商品販売実績" jisseki={officeSales.hanbaiUriage} yosan={officeSales.hanbaiYosan} readOnly />
-        <SalesBlock label="物販合計実績" jisseki={hanbaiUriageKei} yosan={hanbaiYosanKei} readOnly />
-      </div>
+      <SalesSummaryBlock sales={officeSales} monthLabel={MONTH_LABELS[monthKey]} fiscalYear={fiscalYear} />
 
       <div className="srv-card">
         <b>訪問実績（担当者別・営業所計）</b>
@@ -193,44 +202,24 @@ function OfficeSummaryView({ report, fiscalYear, monthKey }) {
         </div>
       </div>
 
-      <div className="srv-grid-2">
-        <div className="srv-card">
-          <b>月間売上・累計（営業所計・千円）</b>
-          <table className="srv-mini-table srv-mini-lg">
-            <tbody>
-              <tr><td>レンタル納品合計</td><td>{yen(officeSales.rentalNouhinKeikei)}</td></tr>
-              <tr><td>前月回収</td><td>{yen(officeSales.zenGetsuKaishu)}</td></tr>
-              <tr><td>目標値</td><td>{yen(officeSales.mokuhyou)}</td></tr>
-              <tr><td>目標差</td><td className={officeSales.rentalNouhinKeikei - officeSales.mokuhyou >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(officeSales.rentalNouhinKeikei - officeSales.mokuhyou)}</td></tr>
-              <tr><td>当月回収</td><td>{yen(officeSales.touGetsuKaishu)}</td></tr>
-              <tr><td>商品販売 予算 / 売上</td><td>{yen(officeSales.hanbaiYosan)} / {yen(officeSales.hanbaiUriage)}</td></tr>
-              <tr><td>住宅改修 予算 / 売上</td><td>{yen(officeSales.kaishuuYosan)} / {yen(officeSales.kaishuuUriage)}</td></tr>
-              <tr className="srv-row-strong"><td>販売合計（予算 / 売上）</td><td>{yen(hanbaiYosanKei)} / {yen(hanbaiUriageKei)}</td></tr>
-              <tr><td>レンタル予算（累計）</td><td>{yen(officeCum.rentalYosanAtsumu)}</td></tr>
-              <tr><td>レンタル実績（累計）</td><td>{yen(officeCum.rentalJissekiAtsumu)}</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="srv-card">
-          <b>販売内訳（営業所計・千円）</b>
-          <table className="srv-mini-table srv-mini-lg">
-            <thead><tr><th>項目</th><th>予算件数</th><th>予算売上</th><th>実績件数</th><th>実績売上</th><th>差</th></tr></thead>
-            <tbody>
-              {HANBAI_ITEMS.map((item) => {
-                const h = officeHanbai[item]
-                const diff = h.jissekiUriage - h.yosanUriage
-                return (
-                  <tr key={item}>
-                    <td>{item}</td><td>{num(h.yosanKensu)}</td><td>{yen(h.yosanUriage)}</td>
-                    <td>{num(h.jissekiKensu)}</td><td>{yen(h.jissekiUriage)}</td>
-                    <td className={diff >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(diff)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="srv-card">
+        <b>販売内訳（営業所計・千円）</b>
+        <table className="srv-mini-table srv-mini-lg">
+          <thead><tr><th>項目</th><th>予算件数</th><th>予算売上</th><th>実績件数</th><th>実績売上</th><th>差</th></tr></thead>
+          <tbody>
+            {HANBAI_ITEMS.map((item) => {
+              const h = officeHanbai[item]
+              const diff = h.jissekiUriage - h.yosanUriage
+              return (
+                <tr key={item}>
+                  <td>{item}</td><td>{num(h.yosanKensu)}</td><td>{yen(h.yosanUriage)}</td>
+                  <td>{num(h.jissekiKensu)}</td><td>{yen(h.jissekiUriage)}</td>
+                  <td className={diff >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(diff)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div className="srv-card">
@@ -249,7 +238,7 @@ function OfficeSummaryView({ report, fiscalYear, monthKey }) {
 }
 
 /* ---------- 担当者ビュー（大きな入力欄） ---------- */
-function RepEditView({ repName, entry, onChange, goals }) {
+function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalYearOfEntry }) {
   const visit = entry.visit || emptyVisit()
   const sales = entry.sales || emptySalesFigures()
   const hanbai = entry.hanbai || emptyHanbaiUchiwake()
@@ -266,23 +255,9 @@ function RepEditView({ repName, entry, onChange, goals }) {
     return acc
   }, { yosan: 0, jisseki: 0 })
 
-  const hanbaiUriageKei = sales.hanbaiUriage + sales.kaishuuUriage
-  const hanbaiYosanKei = sales.hanbaiYosan + sales.kaishuuYosan
-
   return (
     <div className="srv-panel">
-      <div className="srv-stat-row">
-        <StatCard label="訪問合計" value={num(visitTotal(visit))} unit="件" tone="accent" />
-        <StatCard label="当月回収" value={yen(sales.touGetsuKaishu)} unit="千円" />
-        <StatCard label="レンタル実績（累計）" value={yen(sales.rentalJissekiAtsumu)} unit="千円" />
-      </div>
-
-      <div className="srv-sales-block-grid">
-        <SalesBlock label="レンタル実績" jisseki={sales.rentalNouhinKeikei} yosan={sales.mokuhyou} readOnly />
-        <SalesBlock label="住宅改修実績" jisseki={sales.kaishuuUriage} yosan={sales.kaishuuYosan} readOnly />
-        <SalesBlock label="商品販売実績" jisseki={sales.hanbaiUriage} yosan={sales.hanbaiYosan} readOnly />
-        <SalesBlock label="物販合計実績" jisseki={hanbaiUriageKei} yosan={hanbaiYosanKei} readOnly />
-      </div>
+      <SalesSummaryBlock sales={sales} monthLabel={MONTH_LABELS[monthKeyOfEntry]} fiscalYear={fiscalYearOfEntry} />
 
       <div className="srv-card">
         <b>訪問実績</b>
@@ -290,29 +265,40 @@ function RepEditView({ repName, entry, onChange, goals }) {
       </div>
 
       <div className="srv-card">
-        <b>月間売上・累計（千円）</b>
+        <b>月間売上・年度累計（千円・手入力）</b>
         <div className="srv-group">
-          <div className="srv-group-title">月間売上（売上状況報告書）</div>
-          <div className="srv-sales-block-grid">
-            <SalesBlock label="レンタル実績" jisseki={sales.rentalNouhinKeikei} yosan={sales.mokuhyou} onJissekiChange={(v) => setSales('rentalNouhinKeikei', v)} onYosanChange={(v) => setSales('mokuhyou', v)} />
-            <SalesBlock label="住宅改修実績" jisseki={sales.kaishuuUriage} yosan={sales.kaishuuYosan} onJissekiChange={(v) => setSales('kaishuuUriage', v)} onYosanChange={(v) => setSales('kaishuuYosan', v)} />
-            <SalesBlock label="商品販売実績" jisseki={sales.hanbaiUriage} yosan={sales.hanbaiYosan} onJissekiChange={(v) => setSales('hanbaiUriage', v)} onYosanChange={(v) => setSales('hanbaiYosan', v)} />
-            <SalesBlock label="物販合計実績" readOnly jisseki={sales.hanbaiUriage + sales.kaishuuUriage} yosan={sales.hanbaiYosan + sales.kaishuuYosan} />
-          </div>
-          <div className="srv-group-title" style={{ marginTop: 14 }}>レンタル回収</div>
+          <div className="srv-group-title">レンタル（売上状況報告書）</div>
           <div className="srv-big-grid">
-            <BigField label="前月回収" value={sales.zenGetsuKaishu} onChange={(v) => setSales('zenGetsuKaishu', v)} suffix="千円" />
-            <BigField label="当月回収" value={sales.touGetsuKaishu} onChange={(v) => setSales('touGetsuKaishu', v)} suffix="千円" />
+            <BigField label="新規納品金額" value={sales.rentalNouhinKeikei} onChange={(v) => setSales('rentalNouhinKeikei', v)} suffix="千円" />
+            <BigField label="前月回収金額" value={sales.zenGetsuKaishu} onChange={(v) => setSales('zenGetsuKaishu', v)} suffix="千円" />
+            <BigField label="当月回収金額" value={sales.touGetsuKaishu} onChange={(v) => setSales('touGetsuKaishu', v)} suffix="千円" />
+            <BigField label="目標値" value={sales.mokuhyou} onChange={(v) => setSales('mokuhyou', v)} suffix="千円" />
           </div>
         </div>
         <div className="srv-group">
-          <div className="srv-group-title">累計売上（売上推移）</div>
+          <div className="srv-group-title">レンタル（担当別売上実績）</div>
           <div className="srv-big-grid">
-            <BigField label="レンタル予算（累計）" value={sales.rentalYosanAtsumu} onChange={(v) => setSales('rentalYosanAtsumu', v)} suffix="千円" />
-            <BigField label="レンタル実績（累計）" value={sales.rentalJissekiAtsumu} onChange={(v) => setSales('rentalJissekiAtsumu', v)} suffix="千円" />
+            <BigField label="レンタル実績値（単月）" value={sales.rentalJissekiTanki} onChange={(v) => setSales('rentalJissekiTanki', v)} suffix="千円" />
+            <BigField label="レンタル予算（年度累計）" value={sales.rentalYosanAtsumu} onChange={(v) => setSales('rentalYosanAtsumu', v)} suffix="千円" />
+            <BigField label="レンタル実績（年度累計）" value={sales.rentalJissekiAtsumu} onChange={(v) => setSales('rentalJissekiAtsumu', v)} suffix="千円" />
           </div>
-          <div className="srv-inline-calc">
-            予算差 <b className={sales.rentalJissekiAtsumu - sales.rentalYosanAtsumu >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(sales.rentalJissekiAtsumu - sales.rentalYosanAtsumu)}</b>
+        </div>
+        <div className="srv-group">
+          <div className="srv-group-title">住宅改修（担当別売上実績）</div>
+          <div className="srv-big-grid">
+            <BigField label="予算（単月）" value={sales.kaishuuYosan} onChange={(v) => setSales('kaishuuYosan', v)} suffix="千円" />
+            <BigField label="実績（単月）" value={sales.kaishuuUriage} onChange={(v) => setSales('kaishuuUriage', v)} suffix="千円" />
+            <BigField label="予算（年度累計）" value={sales.kaishuuYosanAtsumu} onChange={(v) => setSales('kaishuuYosanAtsumu', v)} suffix="千円" />
+            <BigField label="実績（年度累計）" value={sales.kaishuuUriageAtsumu} onChange={(v) => setSales('kaishuuUriageAtsumu', v)} suffix="千円" />
+          </div>
+        </div>
+        <div className="srv-group">
+          <div className="srv-group-title">商品販売（担当別売上実績）</div>
+          <div className="srv-big-grid">
+            <BigField label="予算（単月）" value={sales.hanbaiYosan} onChange={(v) => setSales('hanbaiYosan', v)} suffix="千円" />
+            <BigField label="実績（単月）" value={sales.hanbaiUriage} onChange={(v) => setSales('hanbaiUriage', v)} suffix="千円" />
+            <BigField label="予算（年度累計）" value={sales.hanbaiYosanAtsumu} onChange={(v) => setSales('hanbaiYosanAtsumu', v)} suffix="千円" />
+            <BigField label="実績（年度累計）" value={sales.hanbaiUriageAtsumu} onChange={(v) => setSales('hanbaiUriageAtsumu', v)} suffix="千円" />
           </div>
         </div>
       </div>
@@ -497,7 +483,7 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
             <span>{activeRep} の入力</span>
             <button className="srv-rep-delete-btn" onClick={() => { if (window.confirm(activeRep + 'を削除しますか？（全ての年度・月の入力データも消えます）')) { removeRep(officeName, activeRep); setActiveRep('__office__'); refresh() } }}>この担当者を削除</button>
           </div>
-          <RepEditView repName={activeRep} entry={currentEntry} onChange={(patch) => patchRep(activeRep, patch)} goals={report.goals} />
+          <RepEditView repName={activeRep} entry={currentEntry} onChange={(patch) => patchRep(activeRep, patch)} goals={report.goals} monthKeyOfEntry={monthKey} fiscalYearOfEntry={fiscalYear} />
         </>
       ) : (
         <div className="srv-card"><div className="srv-empty">担当者データがありません</div></div>

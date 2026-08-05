@@ -1035,10 +1035,27 @@ th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
   font-size: 18px; font-weight: 800; color: var(--navy); padding: 0 8px; outline: 0; }
 .srv-visit-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(7,139,142,.13); }
 
-/* ---------- 実績・予算ブロック（レンタル／住宅改修／商品販売／物販合計） ---------- */
-.srv-sales-block-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
-.srv-sales-block { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdfe; display: flex; flex-direction: column; gap: 10px; }
-.srv-sales-sub { padding-top: 10px; border-top: 1px dashed var(--line-strong); display: flex; flex-direction: column; gap: 8px; }
-.srv-sales-sub-row { display: flex; align-items: center; justify-content: space-between; font-size: 15px; color: #445465; }
-.srv-sales-sub-row b { color: var(--navy); font-size: 18px; }
-.srv-inline-calc.small { margin-top: 0; padding: 8px 10px; font-size: 14px; }
+/* ---------- 売上サマリーブロック（レンタル／住宅改修・商品販売・物販合計） ---------- */
+.srv-sales-summary { display: flex; flex-direction: column; gap: 14px; }
+.srv-sales-group { padding: 16px; border-radius: 14px; display: flex; flex-direction: column; gap: 12px; }
+.srv-sales-group-rental { background: #eef7f6; border: 1px solid #b8dfdd; }
+.srv-sales-group-other { background: #f4f0fb; border: 1px solid #d9cdf2; }
+
+.srv-tworow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.srv-tworow-cell, .srv-threerow-cell { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.srv-tworow-cell span, .srv-threerow-cell span { color: #445465; font-size: 13px; font-weight: 800; }
+.srv-tworow-cell strong, .srv-threerow-cell strong { color: var(--teal-deep); font-size: 20px; font-weight: 900; }
+.srv-tworow-cell strong em, .srv-threerow-cell strong em { margin-left: 4px; color: #5c6f80; font-size: 12px; font-style: normal; font-weight: 800; }
+.srv-threerow { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+
+.srv-budget-row-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.srv-budget-cell { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.srv-budget-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.srv-budget-line span { color: #445465; font-size: 13px; font-weight: 700; }
+.srv-budget-line b { color: var(--navy); font-size: 15px; font-weight: 800; }
+.srv-budget-line em { margin-left: 3px; font-style: normal; font-size: 11px; font-weight: 700; color: #5c6f80; }
+.srv-budget-actual { padding-bottom: 6px; border-bottom: 1px dashed var(--line-strong); }
+.srv-budget-actual b { color: var(--teal-deep); font-size: 17px; }
+.srv-budget-diff b { font-size: 15px; }
+.srv-budget-diff.srv-plus b { color: #087f73; }
+.srv-budget-diff.srv-minus b { color: #b0435a; }

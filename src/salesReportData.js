@@ -35,17 +35,22 @@ export function sumVisits(list) {
 // 月間売上（売上状況報告書）＋累計売上（売上推移）の手入力欄
 export function emptySalesFigures() {
   return {
-    rentalNouhinKeikei: 0,       // レンタル納品合計
-    zenGetsuKaishu: 0,           // 前月回収
-    mokuhyou: 0,                 // 目標値
-    touGetsuKaishu: 0,           // 当月回収
-    hanbaiYosan: 0,              // 商品販売予算
-    hanbaiUriage: 0,             // 商品販売売上
-    kaishuuYosan: 0,             // 住宅改修予算
-    kaishuuUriage: 0,            // 住宅改修売上
-    // 累計側（レンタル）
-    rentalYosanAtsumu: 0,        // レンタル予算（累計）
-    rentalJissekiAtsumu: 0,      // レンタル実績（累計）
+    rentalNouhinKeikei: 0,       // 新規納品金額（売上状況報告書）
+    zenGetsuKaishu: 0,           // 前月回収金額（売上状況報告書）
+    mokuhyou: 0,                 // 目標値（売上状況報告書）
+    touGetsuKaishu: 0,           // 当月回収金額（売上状況報告書）
+    rentalJissekiTanki: 0,       // レンタル実績値（単月・担当別売上実績）
+    hanbaiYosan: 0,              // 商品販売予算（単月・担当別売上実績）
+    hanbaiUriage: 0,             // 商品販売実績（単月・担当別売上実績）
+    kaishuuYosan: 0,             // 住宅改修予算（単月・担当別売上実績）
+    kaishuuUriage: 0,            // 住宅改修実績（単月・担当別売上実績）
+    // 年度累計側（担当別売上実績の「年度累計」列）
+    rentalYosanAtsumu: 0,        // レンタル予算（年度累計）
+    rentalJissekiAtsumu: 0,      // レンタル累計金額（年度累計実績）
+    hanbaiYosanAtsumu: 0,        // 商品販売予算（年度累計）
+    hanbaiUriageAtsumu: 0,       // 商品販売累計金額（年度累計実績）
+    kaishuuYosanAtsumu: 0,       // 住宅改修予算（年度累計）
+    kaishuuUriageAtsumu: 0,      // 住宅改修累計金額（年度累計実績）
   }
 }
 
@@ -88,7 +93,7 @@ export const DEFAULT_GOALS = {
 function defaultRepEntry(overrides = {}) {
   return {
     visit: overrides.visit || emptyVisit(),
-    sales: overrides.sales || emptySalesFigures(),
+    sales: { ...emptySalesFigures(), ...(overrides.sales || {}) },
     hanbai: overrides.hanbai || emptyHanbaiUchiwake(),
     targets: overrides.targets || {},   // { [targetName]: emptyTarget() }
     kaigoRentalJisseki: overrides.kaigoRentalJisseki ?? { houkatsu: 0, kyotaku: 0 },
@@ -363,6 +368,10 @@ export function applyImportedSalesFigures(fiscalYear, monthKey, officeDataMap) {
 }
 
 // その年度・月までの累計（4月からmonthKeyまでの各reps合算値）を計算する。
+// 年度累計そのものを表すフィールド（担当別売上実績の「年度累計」列からそのまま入る値）は、
+// 月をまたいで合算すると二重計上になるため、対象月時点の値をそのまま使う。
+const ATSUMU_KEYS = ['rentalYosanAtsumu', 'rentalJissekiAtsumu', 'hanbaiYosanAtsumu', 'hanbaiUriageAtsumu', 'kaishuuYosanAtsumu', 'kaishuuUriageAtsumu']
+
 export function cumulativeSalesThrough(report, fiscalYear, monthKey) {
   const idx = MONTH_KEYS.indexOf(monthKey)
   const upTo = MONTH_KEYS.slice(0, idx + 1)
@@ -370,7 +379,10 @@ export function cumulativeSalesThrough(report, fiscalYear, monthKey) {
   const totals = {}
   for (const repName of report.repNames) {
     const list = upTo.map((k) => months[k]?.reps?.[repName]?.sales).filter(Boolean)
-    totals[repName] = sumSalesFigures(list)
+    const summed = sumSalesFigures(list)
+    const latest = months[monthKey]?.reps?.[repName]?.sales
+    for (const k of ATSUMU_KEYS) summed[k] = latest?.[k] || 0
+    totals[repName] = summed
   }
   return totals
 }
