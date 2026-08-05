@@ -8,6 +8,9 @@ import { LoginScreen } from './components/LoginScreen'
 import { InitialImportScreen } from './components/InitialImportScreen'
 import { PrintView } from './components/PrintView'
 import { SalesReportView } from './components/SalesReportView'
+import { parseSalesWorkbookAuto } from './salesReportExcelImport'
+import { parseVisitLogWorkbook } from './visitLogImport'
+import { applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedVisitFigures, DEFAULT_FISCAL_YEAR, MONTH_LABELS } from './salesReportData'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 const fiscalFor = (month) => { const [year, number] = month.split('-').map(Number); return number >= 4 ? year : year - 1 }
@@ -259,6 +262,36 @@ export default function App() {
     } catch (error) { notify(error.message, 'error'); return null }
   }
 
+  // 「Excelを取り込む」で選んだファイルが営業月報向け（売上状況報告書／担当別売上実績／訪問ログ）の場合は、
+  // 居宅カレンダーの取込フローに進む前にそちらへ直接反映する。該当しなければnullを返し、通常の取込にフォールバックする。
+  async function tryImportSalesReportFile(file) {
+    if (/\.(xlsx|xlsm)$/i.test(file.name)) {
+      let result
+      try { result = await parseSalesWorkbookAuto(file) }
+      catch { return null }
+      if (result.type === 'status') {
+        const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
+        const targetMonth = result.monthKey ?? month.split('-')[1]
+        const summary = applyImportedSalesFigures(targetYear, targetMonth, result.data)
+        const total = summary.updated.length + summary.created.length
+        return `売上状況報告書を営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に反映しました（${total}件）。`
+      }
+      const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
+      const summary = applyImportedSalesFiguresMultiMonth(targetYear, result.data)
+      const total = summary.updated.length + summary.created.length
+      return `担当別売上実績を営業月報（${targetYear}年度）に反映しました（${total}件、${summary.months.length}ヶ月分）。`
+    }
+    if (/\.(xls|csv)$/i.test(file.name)) {
+      let result
+      try { result = await parseVisitLogWorkbook(file) }
+      catch { return null }
+      const summary = applyImportedVisitFigures(result.offices)
+      const total = summary.updated.length + summary.created.length
+      return `訪問ログを営業月報の訪問実績に反映しました（${result.matchedRows}/${result.totalRows}件、${total}名分）。`
+    }
+    return null
+  }
+
   function openImport() { setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' }); setDialog('import') }
   function selectImportFile(file) {
     if (!file) return
@@ -278,8 +311,21 @@ export default function App() {
   async function previewImport() {
     if (!importState.file) return
     setImportState((state) => ({ ...state, loading: true, preview: null, error: '' }))
+    const file = importState.file
     try {
-      const preview = await api.importPreview(importState.file, importState.archiveMissing)
+      const salesMessage = await tryImportSalesReportFile(file)
+      if (salesMessage) {
+        setDialog(null)
+        setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' })
+        notify(salesMessage)
+        return
+      }
+    } catch (error) {
+      setImportState((state) => ({ ...state, loading: false, preview: null, error: error.message }))
+      return
+    }
+    try {
+      const preview = await api.importPreview(file, importState.archiveMissing)
       setImportState((state) => ({ ...state, loading: false, preview, error: '' }))
     } catch (error) { setImportState((state) => ({ ...state, loading: false, preview: null, error: error.message })) }
   }

@@ -30,7 +30,8 @@ async function loadWorkbook(file) {
   const buffer = await file.arrayBuffer()
   const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
-  try { await workbook.xlsx.load(buffer) }
+  // 値しか使わないため、書式・画像・ハイパーリンクの解析は省いて読み込みを軽くする。
+  try { await workbook.xlsx.load(buffer, { ignoreNodes: ['dataValidations', 'hyperlinks', 'drawing', 'picture', 'conditionalFormatting'] }) }
   catch { throw new Error('Excelファイルを読み取れませんでした。パスワード保護を解除し、.xlsx形式で保存し直してください。') }
   return workbook
 }
@@ -83,7 +84,10 @@ function parseSalesStatusSheet(sheet) {
 }
 
 export async function parseSalesStatusWorkbook(file) {
-  const workbook = await loadWorkbook(file)
+  return parseSalesStatusFromWorkbook(await loadWorkbook(file))
+}
+
+function parseSalesStatusFromWorkbook(workbook) {
   const result = {}
   let fiscalYear = null
   let monthKey = null
@@ -109,7 +113,10 @@ function findRepPerformanceSheet(workbook) {
 // 担当別売上実績シートは4月〜3月の12ヶ月分が横に並んでいる（1つのファイルに全月分が入っている）ため、
 // 選択中の月だけでなく、シートに存在する月をすべて一度に読み取る。
 export async function parseRepPerformanceWorkbook(file) {
-  const workbook = await loadWorkbook(file)
+  return parseRepPerformanceFromWorkbook(await loadWorkbook(file))
+}
+
+function parseRepPerformanceFromWorkbook(workbook) {
   const sheet = findRepPerformanceSheet(workbook)
   if (!sheet) throw new Error('「担当別売上実績」という名前のシートが見つかりませんでした。')
 
@@ -195,15 +202,15 @@ export async function parseRepPerformanceWorkbook(file) {
 
 // ファイルの中身を見て、どちらの形式かを自動判定して読み込む。
 export async function parseSalesWorkbookAuto(file) {
+  // Excelの解析は重いので、判定と読み取りで1回のロードを使い回す。
   const workbook = await loadWorkbook(file)
   const hasStatusSheet = workbook.worksheets.some((s) => /^レンタル個人売上状況報告書（.+）$/.test(s.name))
   if (hasStatusSheet) {
-    const { fiscalYear, monthKey, offices } = await parseSalesStatusWorkbook(file)
+    const { fiscalYear, monthKey, offices } = parseSalesStatusFromWorkbook(workbook)
     return { type: 'status', fiscalYear, monthKey, data: offices }
   }
-  const repSheet = findRepPerformanceSheet(workbook)
-  if (repSheet) {
-    const { fiscalYear, offices } = await parseRepPerformanceWorkbook(file)
+  if (findRepPerformanceSheet(workbook)) {
+    const { fiscalYear, offices } = parseRepPerformanceFromWorkbook(workbook)
     return { type: 'performance', fiscalYear, data: offices }
   }
   throw new Error('対応している売上状況報告書・担当別売上実績のシートが見つかりませんでした。')
