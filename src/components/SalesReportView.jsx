@@ -7,7 +7,7 @@ import {
   HANBAI_ITEMS, emptyHanbaiUchiwake, sumHanbaiUchiwake,
   emptyTarget,
   getOfficeReport, updateOfficeReport, updateRepEntry, addRep, removeRep,
-  cumulativeSalesThrough, applyImportedSalesFigures,
+  cumulativeSalesThrough, applyImportedSalesFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
 } from '../salesReportData'
 import { parseSalesWorkbookAuto } from '../salesReportExcelImport'
 import { downloadElementPdf } from '../pdf-export'
@@ -124,14 +124,14 @@ function StatCard({ label, value, unit, tone }) {
 }
 
 /* ---------- 営業所合計ビュー（読み取り専用・自動集計） ---------- */
-function OfficeSummaryView({ report, monthKey }) {
-  const monthData = report.months[monthKey] || { reps: {} }
+function OfficeSummaryView({ report, fiscalYear, monthKey }) {
+  const monthData = getYearMonths(report, fiscalYear)[monthKey] || { reps: {} }
   const reps = report.repNames
 
   const officeVisit = useMemo(() => sumVisits(reps.map((n) => monthData.reps[n]?.visit || emptyVisit())), [reps, monthData])
   const officeSales = useMemo(() => sumSalesFigures(reps.map((n) => monthData.reps[n]?.sales || emptySalesFigures())), [reps, monthData])
   const officeHanbai = useMemo(() => sumHanbaiUchiwake(reps.map((n) => monthData.reps[n]?.hanbai || emptyHanbaiUchiwake())), [reps, monthData])
-  const cumAll = useMemo(() => cumulativeSalesThrough(report, monthKey), [report, monthKey])
+  const cumAll = useMemo(() => cumulativeSalesThrough(report, fiscalYear, monthKey), [report, fiscalYear, monthKey])
   const officeCum = useMemo(() => sumSalesFigures(reps.map((n) => cumAll[n])), [reps, cumAll])
 
   const hanbaiYosanKei = officeSales.hanbaiYosan + officeSales.kaishuuYosan
@@ -418,17 +418,18 @@ function RepEditView({ repName, entry, onChange, goals }) {
   )
 }
 
-function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYear, refresh }) {
+function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, monthKey, setMonthKey, refresh }) {
   const [activeRep, setActiveRep] = useState('__office__')
   const [newRepName, setNewRepName] = useState('')
   const [importBusy, setImportBusy] = useState(false)
   const [importMessage, setImportMessage] = useState(null) // { type: 'ok'|'error', text }
-  const monthData = report.months[monthKey] || { reps: {} }
+  const monthData = getYearMonths(report, fiscalYear)[monthKey] || { reps: {} }
   const reps = report.repNames
   const calendarYear = fiscalCalendarYear(fiscalYear, monthKey)
+  const availableYears = listFiscalYears(report, fiscalYear)
 
   function patchRep(repName, patch) {
-    updateRepEntry(officeName, monthKey, repName, patch)
+    updateRepEntry(officeName, fiscalYear, monthKey, repName, patch)
     refresh()
   }
 
@@ -440,7 +441,7 @@ function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYea
     setImportMessage(null)
     try {
       const { data } = await parseSalesWorkbookAuto(file, monthKey)
-      const summary = applyImportedSalesFigures(monthKey, data)
+      const summary = applyImportedSalesFigures(fiscalYear, monthKey, data)
       refresh()
       const total = summary.updated.length + summary.created.length
       const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
@@ -456,6 +457,11 @@ function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYea
 
   return (
     <div className="srv-panel">
+      <div className="srv-year-switch">
+        {availableYears.map((y) => (
+          <button key={y} className={y === fiscalYear ? 'active' : ''} onClick={() => setFiscalYear(y)}>{y}年度</button>
+        ))}
+      </div>
       <div className="srv-month-switch">
         {MONTH_KEYS.map((k) => (
           <button key={k} className={k === monthKey ? 'active' : ''} onClick={() => setMonthKey(k)}>{MONTH_LABELS[k]}</button>
@@ -468,7 +474,7 @@ function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYea
           {importBusy ? '取り込み中…' : 'Excelを取り込む（売上状況報告書／担当別売上実績）'}
           <input type="file" accept=".xlsx,.xlsm" disabled={importBusy} onChange={handleImportFile} hidden />
         </label>
-        <span className="srv-import-hint">全営業所の該当データを{MONTH_LABELS[monthKey]}分としてまとめて反映します</span>
+        <span className="srv-import-hint">全営業所の該当データを{fiscalYear}年度{MONTH_LABELS[monthKey]}分としてまとめて反映します</span>
       </div>
       {importMessage && <div className={`srv-import-msg ${importMessage.type}`}>{importMessage.text}</div>}
 
@@ -479,17 +485,17 @@ function MonthlyReportTab({ officeName, report, monthKey, setMonthKey, fiscalYea
         ))}
         <div className="srv-add-rep srv-add-rep-inline">
           <input value={newRepName} onChange={(e) => setNewRepName(e.target.value)} placeholder="担当者を追加" />
-          <button onClick={() => { const n = newRepName.trim(); if (n) { addRep(officeName, n); setNewRepName(''); refresh(); setActiveRep(n) } }}>＋</button>
+          <button onClick={() => { const n = newRepName.trim(); if (n) { addRep(officeName, fiscalYear, n); setNewRepName(''); refresh(); setActiveRep(n) } }}>＋</button>
         </div>
       </div>
 
       {activeRep === '__office__' ? (
-        <OfficeSummaryView report={report} monthKey={monthKey} />
+        <OfficeSummaryView report={report} fiscalYear={fiscalYear} monthKey={monthKey} />
       ) : currentEntry ? (
         <>
           <div className="srv-rep-head">
             <span>{activeRep} の入力</span>
-            <button className="srv-rep-delete-btn" onClick={() => { if (window.confirm(activeRep + 'を削除しますか？（全ての月の入力データも消えます）')) { removeRep(officeName, activeRep); setActiveRep('__office__'); refresh() } }}>この担当者を削除</button>
+            <button className="srv-rep-delete-btn" onClick={() => { if (window.confirm(activeRep + 'を削除しますか？（全ての年度・月の入力データも消えます）')) { removeRep(officeName, activeRep); setActiveRep('__office__'); refresh() } }}>この担当者を削除</button>
           </div>
           <RepEditView repName={activeRep} entry={currentEntry} onChange={(patch) => patchRep(activeRep, patch)} goals={report.goals} />
         </>
@@ -615,17 +621,18 @@ function InterviewTab({ officeName, report, refresh }) {
 function AnnualProgressTab({ officeName, report, fiscalYear }) {
   const upperMonths = ['04', '05', '06', '07', '08', '09']
   const lowerMonths = ['10', '11', '12', '01', '02', '03']
+  const months = getYearMonths(report, fiscalYear)
 
   const allEntries = useMemo(() => {
     const list = []
-    for (const k of MONTH_KEYS) for (const name of report.repNames) list.push(report.months[k]?.reps?.[name])
+    for (const k of MONTH_KEYS) for (const name of report.repNames) list.push(months[k]?.reps?.[name])
     return list.filter(Boolean)
-  }, [report])
+  }, [months, report.repNames])
 
-  function sumOver(months, pick) {
+  function sumOver(monthKeys, pick) {
     let total = 0
-    for (const k of months) for (const name of report.repNames) {
-      const e = report.months[k]?.reps?.[name]
+    for (const k of monthKeys) for (const name of report.repNames) {
+      const e = months[k]?.reps?.[name]
       if (e) total += pick(e) || 0
     }
     return total
@@ -652,7 +659,7 @@ function AnnualProgressTab({ officeName, report, fiscalYear }) {
   const targetTotals = useMemo(() => {
     const acc = {}
     for (const k of MONTH_KEYS) for (const name of report.repNames) {
-      const targets = report.months[k]?.reps?.[name]?.targets || {}
+      const targets = months[k]?.reps?.[name]?.targets || {}
       for (const [facName, t] of Object.entries(targets)) {
         if (!acc[facName]) acc[facName] = { lastMar: { count: 0, sales: 0 }, latest: { count: 0, sales: 0 } }
         acc[facName].latest = t.thisMonth
@@ -660,18 +667,18 @@ function AnnualProgressTab({ officeName, report, fiscalYear }) {
       }
     }
     return acc
-  }, [report])
+  }, [months, report.repNames])
 
   const hanbaiAnnual = useMemo(() => {
     const acc = {}
     for (const item of HANBAI_ITEMS) acc[item] = { yosan: 0, jisseki: 0 }
     for (const k of MONTH_KEYS) for (const name of report.repNames) {
-      const h = report.months[k]?.reps?.[name]?.hanbai
+      const h = months[k]?.reps?.[name]?.hanbai
       if (!h) continue
       for (const item of HANBAI_ITEMS) { acc[item].yosan += h[item].yosanUriage || 0; acc[item].jisseki += h[item].jissekiUriage || 0 }
     }
     return acc
-  }, [report])
+  }, [months, report.repNames])
 
   return (
     <div className="srv-panel">
@@ -775,11 +782,12 @@ const SUB_TABS = [
   ['annual', '年間目標進捗'],
 ]
 
-export function SalesReportView({ officeName, fiscalYear }) {
+export function SalesReportView({ officeName, fiscalYear: appFiscalYear }) {
   const [tick, setTick] = useState(0)
   const refresh = () => setTick((t) => t + 1)
   const report = useMemo(() => getOfficeReport(officeName), [officeName, tick])
   const [subTab, setSubTab] = useState('monthly')
+  const [fiscalYear, setFiscalYear] = useState(appFiscalYear || DEFAULT_FISCAL_YEAR)
   const [monthKey, setMonthKey] = useState('04')
   const [pdfBusy, setPdfBusy] = useState(false)
 
@@ -817,7 +825,7 @@ export function SalesReportView({ officeName, fiscalYear }) {
           <button key={key} className={subTab === key ? 'active' : ''} onClick={() => setSubTab(key)}>{label}</button>
         ))}
       </div>
-      {subTab === 'monthly' && <MonthlyReportTab officeName={officeName} report={report} monthKey={monthKey} setMonthKey={setMonthKey} fiscalYear={fiscalYear} refresh={refresh} />}
+      {subTab === 'monthly' && <MonthlyReportTab officeName={officeName} report={report} fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} monthKey={monthKey} setMonthKey={setMonthKey} refresh={refresh} />}
       {subTab === 'goals' && <GoalSettingTab officeName={officeName} report={report} refresh={refresh} />}
       {subTab === 'budget' && <BudgetTableTab officeName={officeName} report={report} refresh={refresh} />}
       {subTab === 'interview' && <InterviewTab officeName={officeName} report={report} refresh={refresh} />}

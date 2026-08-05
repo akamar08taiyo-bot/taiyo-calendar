@@ -138,6 +138,28 @@ const APR_SEED_REPS = {
   }),
 }
 
+// 5月〜7月（2026年度）の訪問実績：久保匠史さんの訪問ログ（訪問.xls）を実施内容タグごとに集計した実数値。
+// 他の担当者分のログは未提供のため、提供され次第ここに追記する。
+const FY2026_MAY_JUL_VISIT = {
+  '05': { houkatsu: 21, kyotaku: 23, shisetsu: 24, kojin: 68, yakusho: 1, rentalSoudan: 17, rentalKaigo: 13, rentalJihi: 2, rentalKaishu: 2, rentalKoukan: 2, hanbaiSoudan: 19, hanbaiNouhin: 11, kaishuSoudan: 12, kaishuGenba: 12, kaishuKouji: 1, keikakusho: 33, monitoring: 22, tantousha: 31, claim: 0, shukin: 5, doukou: 0, sonota: 51, kadou: 18 },
+  '06': { houkatsu: 18, kyotaku: 15, shisetsu: 18, kojin: 88, yakusho: 0, rentalSoudan: 20, rentalKaigo: 15, rentalJihi: 3, rentalKaishu: 5, rentalKoukan: 3, hanbaiSoudan: 14, hanbaiNouhin: 21, kaishuSoudan: 10, kaishuGenba: 10, kaishuKouji: 6, keikakusho: 32, monitoring: 18, tantousha: 32, claim: 0, shukin: 16, doukou: 0, sonota: 35, kadou: 22 },
+  '07': { houkatsu: 17, kyotaku: 18, shisetsu: 14, kojin: 74, yakusho: 0, rentalSoudan: 10, rentalKaigo: 13, rentalJihi: 2, rentalKaishu: 6, rentalKoukan: 2, hanbaiSoudan: 6, hanbaiNouhin: 15, kaishuSoudan: 7, kaishuGenba: 7, kaishuKouji: 3, keikakusho: 31, monitoring: 17, tantousha: 31, claim: 0, shukin: 8, doukou: 0, sonota: 53, kadou: 20 },
+}
+
+// 前年度（2025年度：2025年4月〜2026年3月）の訪問実績：久保匠史さんのみ、訪問.xlsから復元（4月・5月・6月分はログ範囲外のため空欄）。
+// 前年比較のため年度切り替えで参照できるようにしている。
+const FY2025_KUBO_VISIT = {
+  '07': { houkatsu: 15, kyotaku: 18, shisetsu: 14, kojin: 44, yakusho: 0, rentalSoudan: 10, rentalKaigo: 15, rentalJihi: 1, rentalKaishu: 8, rentalKoukan: 0, hanbaiSoudan: 14, hanbaiNouhin: 11, kaishuSoudan: 8, kaishuGenba: 8, kaishuKouji: 5, keikakusho: 20, monitoring: 13, tantousha: 18, claim: 0, shukin: 12, doukou: 0, sonota: 50, kadou: 20 },
+  '08': { houkatsu: 34, kyotaku: 32, shisetsu: 13, kojin: 61, yakusho: 0, rentalSoudan: 14, rentalKaigo: 10, rentalJihi: 0, rentalKaishu: 3, rentalKoukan: 1, hanbaiSoudan: 7, hanbaiNouhin: 9, kaishuSoudan: 9, kaishuGenba: 9, kaishuKouji: 7, keikakusho: 28, monitoring: 17, tantousha: 22, claim: 0, shukin: 10, doukou: 0, sonota: 79, kadou: 19 },
+  '09': { houkatsu: 23, kyotaku: 16, shisetsu: 9, kojin: 60, yakusho: 0, rentalSoudan: 14, rentalKaigo: 17, rentalJihi: 1, rentalKaishu: 7, rentalKoukan: 0, hanbaiSoudan: 6, hanbaiNouhin: 7, kaishuSoudan: 15, kaishuGenba: 15, kaishuKouji: 7, keikakusho: 24, monitoring: 16, tantousha: 21, claim: 0, shukin: 4, doukou: 0, sonota: 55, kadou: 18 },
+  '10': { houkatsu: 26, kyotaku: 21, shisetsu: 10, kojin: 79, yakusho: 2, rentalSoudan: 11, rentalKaigo: 16, rentalJihi: 1, rentalKaishu: 5, rentalKoukan: 6, hanbaiSoudan: 5, hanbaiNouhin: 8, kaishuSoudan: 14, kaishuGenba: 14, kaishuKouji: 6, keikakusho: 26, monitoring: 9, tantousha: 22, claim: 0, shukin: 5, doukou: 0, sonota: 58, kadou: 21 },
+  '11': { houkatsu: 26, kyotaku: 25, shisetsu: 14, kojin: 41, yakusho: 2, rentalSoudan: 8, rentalKaigo: 8, rentalJihi: 0, rentalKaishu: 2, rentalKoukan: 1, hanbaiSoudan: 3, hanbaiNouhin: 11, kaishuSoudan: 8, kaishuGenba: 8, kaishuKouji: 2, keikakusho: 16, monitoring: 8, tantousha: 16, claim: 0, shukin: 3, doukou: 0, sonota: 74, kadou: 17 },
+  '12': { houkatsu: 18, kyotaku: 19, shisetsu: 20, kojin: 77, yakusho: 1, rentalSoudan: 9, rentalKaigo: 18, rentalJihi: 2, rentalKaishu: 4, rentalKoukan: 0, hanbaiSoudan: 4, hanbaiNouhin: 8, kaishuSoudan: 13, kaishuGenba: 13, kaishuKouji: 6, keikakusho: 24, monitoring: 10, tantousha: 24, claim: 0, shukin: 7, doukou: 0, sonota: 80, kadou: 20 },
+  '01': { houkatsu: 27, kyotaku: 20, shisetsu: 18, kojin: 68, yakusho: 2, rentalSoudan: 6, rentalKaigo: 8, rentalJihi: 1, rentalKaishu: 10, rentalKoukan: 4, hanbaiSoudan: 7, hanbaiNouhin: 10, kaishuSoudan: 6, kaishuGenba: 6, kaishuKouji: 6, keikakusho: 22, monitoring: 14, tantousha: 21, claim: 0, shukin: 5, doukou: 0, sonota: 65, kadou: 18 },
+  '02': { houkatsu: 20, kyotaku: 20, shisetsu: 14, kojin: 58, yakusho: 1, rentalSoudan: 5, rentalKaigo: 15, rentalJihi: 0, rentalKaishu: 4, rentalKoukan: 0, hanbaiSoudan: 6, hanbaiNouhin: 11, kaishuSoudan: 6, kaishuGenba: 6, kaishuKouji: 2, keikakusho: 29, monitoring: 17, tantousha: 25, claim: 0, shukin: 9, doukou: 0, sonota: 53, kadou: 17 },
+  '03': { houkatsu: 26, kyotaku: 25, shisetsu: 11, kojin: 79, yakusho: 0, rentalSoudan: 11, rentalKaigo: 17, rentalJihi: 3, rentalKaishu: 6, rentalKoukan: 4, hanbaiSoudan: 9, hanbaiNouhin: 14, kaishuSoudan: 6, kaishuGenba: 6, kaishuKouji: 3, keikakusho: 26, monitoring: 19, tantousha: 23, claim: 0, shukin: 5, doukou: 0, sonota: 56, kadou: 20 },
+}
+
 // 売上予算表：営業所計＋担当者ごとの月別予算（レンタル/住宅改修/商品販売、特価ベッド目標台数）
 // 4月の値は実データ、5月以降はExcelの「増加額」方式（前月＋増加額）をそのまま数値化。
 const BUDGET_SEED = {
@@ -158,16 +180,39 @@ const BUDGET_SEED = {
   },
 }
 
-function defaultOfficeSeed() {
+export const DEFAULT_FISCAL_YEAR = 2026
+const PREV_FISCAL_YEAR = 2025
+
+function fy2026Months() {
   const months = {}
   for (const key of MONTH_KEYS) {
     const reps = {}
-    for (const name of Object.keys(APR_SEED_REPS)) reps[name] = key === '04' ? APR_SEED_REPS[name] : defaultRepEntry()
+    for (const name of Object.keys(APR_SEED_REPS)) {
+      if (key === '04') reps[name] = APR_SEED_REPS[name]
+      else if (name === '久保匠史' && FY2026_MAY_JUL_VISIT[key]) reps[name] = defaultRepEntry({ visit: FY2026_MAY_JUL_VISIT[key] })
+      else reps[name] = defaultRepEntry()
+    }
     months[key] = { reps }
   }
+  return months
+}
+
+function fy2025Months() {
+  const months = {}
+  for (const key of MONTH_KEYS) {
+    const reps = {}
+    for (const name of Object.keys(APR_SEED_REPS)) {
+      reps[name] = name === '久保匠史' && FY2025_KUBO_VISIT[key] ? defaultRepEntry({ visit: FY2025_KUBO_VISIT[key] }) : defaultRepEntry()
+    }
+    months[key] = { reps }
+  }
+  return months
+}
+
+function defaultOfficeSeed() {
   return {
     repNames: Object.keys(APR_SEED_REPS),
-    months,
+    monthsByYear: { [DEFAULT_FISCAL_YEAR]: fy2026Months(), [PREV_FISCAL_YEAR]: fy2025Months() },
     budget: BUDGET_SEED,
     goals: DEFAULT_GOALS,
     kamiTermGoals: { officeName: '東九州営業部・行橋営業所', personName: '久保　匠史', items: [
@@ -193,6 +238,32 @@ function load() {
 
 function save(data) { localStorage.setItem(STORE_KEY, JSON.stringify(data)) }
 
+// 旧バージョン（年度の概念がなく report.months が単一年度分だった頃）のデータを、
+// monthsByYear[DEFAULT_FISCAL_YEAR] へ移行する。
+function migrateReport(report) {
+  if (report.months && !report.monthsByYear) {
+    report.monthsByYear = { [DEFAULT_FISCAL_YEAR]: report.months }
+    delete report.months
+  }
+  if (!report.monthsByYear) report.monthsByYear = {}
+  return report
+}
+
+function emptyYearMonths() { return Object.fromEntries(MONTH_KEYS.map((k) => [k, { reps: {} }])) }
+
+// 指定年度の月別データ（存在しなければ空データ）を取得する読み取り専用ヘルパー。
+export function getYearMonths(report, fiscalYear) {
+  return report.monthsByYear?.[fiscalYear] || emptyYearMonths()
+}
+
+// レポートに現在含まれる年度一覧（+ 表示中の年度は必ず含める）を昇順で返す。
+export function listFiscalYears(report, currentFiscalYear) {
+  const years = new Set(Object.keys(report.monthsByYear || {}).map(Number))
+  years.add(DEFAULT_FISCAL_YEAR)
+  if (currentFiscalYear != null) years.add(currentFiscalYear)
+  return [...years].sort((a, b) => a - b)
+}
+
 export function getOfficeReport(officeName) {
   const data = load()
   if (!data.offices[officeName]) {
@@ -200,13 +271,15 @@ export function getOfficeReport(officeName) {
     data.offices[officeName] = officeName === '行橋営業所' ? defaultOfficeSeed() : emptyOfficeSeed()
     save(data)
   }
+  const migrated = migrateReport(data.offices[officeName])
+  if (migrated !== data.offices[officeName]) { data.offices[officeName] = migrated; save(data) }
   return data.offices[officeName]
 }
 
 function emptyOfficeSeed() {
   return {
     repNames: [],
-    months: Object.fromEntries(MONTH_KEYS.map((k) => [k, { reps: {} }])),
+    monthsByYear: {},
     budget: { office: { rentalMonthly: Array(12).fill(0), kaishuuMonthly: Array(12).fill(0), hanbaiMonthly: Array(12).fill(0), tokkaBedMonthly: Array(12).fill(0), shouhinhinLastYearAvg: 0, shouhinhinTargetAvg: 0, ninzu: 0 }, reps: {} },
     goals: DEFAULT_GOALS,
     kamiTermGoals: { officeName: '', personName: '', items: [], kadaiItems: [] },
@@ -217,49 +290,56 @@ function emptyOfficeSeed() {
 
 export function updateOfficeReport(officeName, updater) {
   const data = load()
-  const current = data.offices[officeName] || (officeName === '行橋営業所' ? defaultOfficeSeed() : emptyOfficeSeed())
+  const current = migrateReport(data.offices[officeName] || (officeName === '行橋営業所' ? defaultOfficeSeed() : emptyOfficeSeed()))
   data.offices[officeName] = updater(current)
   save(data)
   return data.offices[officeName]
 }
 
-export function addRep(officeName, name) {
+export function addRep(officeName, fiscalYear, name) {
   return updateOfficeReport(officeName, (report) => {
-    if (report.repNames.includes(name)) return report
-    const repNames = [...report.repNames, name]
-    const months = { ...report.months }
-    for (const key of MONTH_KEYS) months[key] = { reps: { ...months[key].reps, [name]: defaultRepEntry() } }
-    return { ...report, repNames, months }
+    const repNames = report.repNames.includes(name) ? report.repNames : [...report.repNames, name]
+    const monthsByYear = { ...report.monthsByYear }
+    const months = { ...getYearMonths(report, fiscalYear) }
+    for (const key of MONTH_KEYS) months[key] = { reps: { ...months[key].reps, [name]: months[key].reps[name] || defaultRepEntry() } }
+    monthsByYear[fiscalYear] = months
+    return { ...report, repNames, monthsByYear }
   })
 }
 
 export function removeRep(officeName, name) {
   return updateOfficeReport(officeName, (report) => {
     const repNames = report.repNames.filter((n) => n !== name)
-    const months = { ...report.months }
-    for (const key of MONTH_KEYS) {
-      const reps = { ...months[key].reps }
-      delete reps[name]
-      months[key] = { reps }
+    const monthsByYear = {}
+    for (const [year, months] of Object.entries(report.monthsByYear)) {
+      const yearMonths = {}
+      for (const key of MONTH_KEYS) {
+        const reps = { ...months[key].reps }
+        delete reps[name]
+        yearMonths[key] = { reps }
+      }
+      monthsByYear[year] = yearMonths
     }
-    return { ...report, repNames, months }
+    return { ...report, repNames, monthsByYear }
   })
 }
 
-export function updateRepEntry(officeName, monthKey, repName, patch) {
+export function updateRepEntry(officeName, fiscalYear, monthKey, repName, patch) {
   return updateOfficeReport(officeName, (report) => {
-    const months = { ...report.months }
+    const monthsByYear = { ...report.monthsByYear }
+    const months = { ...getYearMonths(report, fiscalYear) }
     const monthData = months[monthKey] || { reps: {} }
     const current = monthData.reps[repName] || defaultRepEntry()
     months[monthKey] = { reps: { ...monthData.reps, [repName]: { ...current, ...patch } } }
-    return { ...report, months }
+    monthsByYear[fiscalYear] = months
+    return { ...report, monthsByYear }
   })
 }
 
 // Excel取込結果（{ [officeName]: { reps: { [repName]: 部分的なsalesFigures } } }）を
-// 選択中の月に反映する。担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、
+// 選択中の年度・月に反映する。担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、
 // どちらも該当しなければ新しい担当者として追加する。
-export function applyImportedSalesFigures(monthKey, officeDataMap) {
+export function applyImportedSalesFigures(fiscalYear, monthKey, officeDataMap) {
   const summary = { updated: [], created: [] }
   for (const [officeName, entry] of Object.entries(officeDataMap)) {
     const reps = entry.reps || {}
@@ -269,26 +349,27 @@ export function applyImportedSalesFigures(monthKey, officeDataMap) {
         || report.repNames.find((n) => n.startsWith(parsedName) || parsedName.startsWith(n))
       let created = false
       if (!matched) {
-        addRep(officeName, parsedName)
+        addRep(officeName, fiscalYear, parsedName)
         matched = parsedName
         created = true
       }
       report = getOfficeReport(officeName)
-      const current = report.months[monthKey]?.reps?.[matched]?.sales || emptySalesFigures()
-      updateRepEntry(officeName, monthKey, matched, { sales: { ...current, ...patch } })
+      const current = getYearMonths(report, fiscalYear)[monthKey]?.reps?.[matched]?.sales || emptySalesFigures()
+      updateRepEntry(officeName, fiscalYear, monthKey, matched, { sales: { ...current, ...patch } })
       summary[created ? 'created' : 'updated'].push(`${officeName} / ${matched}`)
     }
   }
   return summary
 }
 
-// その月までの累計（4月からmonthKeyまでの各reps合算値）を計算する。
-export function cumulativeSalesThrough(report, monthKey) {
+// その年度・月までの累計（4月からmonthKeyまでの各reps合算値）を計算する。
+export function cumulativeSalesThrough(report, fiscalYear, monthKey) {
   const idx = MONTH_KEYS.indexOf(monthKey)
   const upTo = MONTH_KEYS.slice(0, idx + 1)
+  const months = getYearMonths(report, fiscalYear)
   const totals = {}
   for (const repName of report.repNames) {
-    const list = upTo.map((k) => report.months[k]?.reps?.[repName]?.sales).filter(Boolean)
+    const list = upTo.map((k) => months[k]?.reps?.[repName]?.sales).filter(Boolean)
     totals[repName] = sumSalesFigures(list)
   }
   return totals
