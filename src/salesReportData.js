@@ -342,6 +342,14 @@ export function updateRepEntry(officeName, fiscalYear, monthKey, repName, patch)
   })
 }
 
+// 取り込んだExcel/CSVに含まれる営業所と、今開いている営業所が一致するかを確認する。
+// 他営業所のデータが紛れ込んで誤って上書きされることを防ぐため、一致しなければエラーにする。
+export function pickOfficeData(officeDataMap, officeName) {
+  if (officeDataMap[officeName]) return { [officeName]: officeDataMap[officeName] }
+  const others = Object.keys(officeDataMap)
+  throw new Error(`このファイルには「${officeName}」のデータが含まれていません（含まれる営業所：${others.join('、') || 'なし'}）。営業所を確認してください。`)
+}
+
 // Excel取込結果（{ [officeName]: { reps: { [repName]: 部分的なsalesFigures } } }）を
 // 選択中の年度・月に反映する。担当者名はまず完全一致、なければ前方一致（姓のみのデータに対応）で照合し、
 // どちらも該当しなければ新しい担当者として追加する。
@@ -406,6 +414,38 @@ export function applyImportedSalesFiguresMultiMonth(fiscalYear, officeDataMap) {
     })
   }
   return { updated: summary.updated, created: summary.created, months: [...summary.months].sort() }
+}
+
+// 商品分類別販売売上の取込結果（{ [officeName]: { reps: { [repName]: { [HANBAI_ITEM名]: { jissekiKensu, jissekiUriage } } } } }）を
+// 選択中の年度・月の販売内訳（実績のみ、予算は変更しない）に反映する。担当者名の照合ルールは他の取込と同じ。
+export function applyImportedHanbaiFigures(fiscalYear, monthKey, officeDataMap) {
+  const summary = { updated: [], created: [] }
+  for (const [officeName, entry] of Object.entries(officeDataMap)) {
+    const repsData = entry.reps || {}
+    updateOfficeReport(officeName, (report) => {
+      let repNames = report.repNames
+      const monthsByYear = { ...report.monthsByYear }
+      const months = { ...getYearMonths(report, fiscalYear) }
+      const monthData = months[monthKey] || { reps: {} }
+      const nextReps = { ...monthData.reps }
+      for (const [parsedName, itemPatch] of Object.entries(repsData)) {
+        const resolved = resolveRepName(repNames, parsedName)
+        repNames = resolved.repNames
+        const current = nextReps[resolved.matched] || defaultRepEntry()
+        const currentHanbai = current.hanbai || emptyHanbaiUchiwake()
+        const nextHanbai = { ...currentHanbai }
+        for (const [itemName, patch] of Object.entries(itemPatch)) {
+          nextHanbai[itemName] = { ...currentHanbai[itemName], ...patch }
+        }
+        nextReps[resolved.matched] = { ...current, hanbai: nextHanbai }
+        summary[resolved.created ? 'created' : 'updated'].push(`${officeName} / ${resolved.matched}`)
+      }
+      months[monthKey] = { reps: nextReps }
+      monthsByYear[fiscalYear] = months
+      return { ...report, repNames, monthsByYear }
+    })
+  }
+  return summary
 }
 
 // 訪問ログ取込結果（{ [officeName]: { [repName]: { [fiscalYear]: { [monthKey]: { visit } } } } }）を反映する。

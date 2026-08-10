@@ -34,7 +34,7 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
     <div className="page-header">
       <div><h1>居宅カレンダー</h1><p>{fiscalYear}年度・{year}年{monthNumber}月</p></div>
       <div className="page-header-actions">
-        {canImport && <Button icon="upload" variant="primary" onClick={onOpenImport}>Excelを取り込む</Button>}
+        {canImport && <Button icon="upload" variant="primary" className="button-import-highlight" onClick={onOpenImport}>Excelを取り込む（訪問履歴・売上報告）</Button>}
         <Button icon="printer" onClick={onOpenPrint}>印刷</Button>
         <Button icon="pdf" onClick={onOpenPdf}>この月をPDF</Button>
         <Button icon="chart" onClick={onOpenAnalysis}>分析を見る</Button>

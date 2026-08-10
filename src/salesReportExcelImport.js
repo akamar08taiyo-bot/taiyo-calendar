@@ -200,6 +200,79 @@ function parseRepPerformanceFromWorkbook(workbook) {
   return { fiscalYear, offices: result } // offices: { [officeName]: { reps: { [repName]: { [monthKey]: {...} } } } }
 }
 
+/* ---------- ③販売区分・商品分類別 販売売上（住宅改修／福祉用具／紙おむつ／消耗品の件数・売上） ---------- */
+function findHanbaiBunruiSheet(workbook) {
+  return workbook.worksheets.find((s) => /商品分類別.*販売売上|販売区分.*商品分類別/.test(s.name)) || null
+}
+
+// シートの行見出し（①住宅改修売上 など）を、営業月報の販売内訳項目（HANBAI_ITEMS）へ対応させる。
+const HANBAI_ROW_MAP = [
+  [/^①.*住宅改修/, '①住宅改修'],
+  [/^②.*特定福祉用具/, '②特定福祉用具'],
+  [/^③.*一般福祉用具/, '③一般福祉用具'],
+  [/^④.*紙おむつ/, '④紙おむつ販売'],
+  [/^⑤.*消耗品/, '⑤消耗品販売'],
+]
+const NON_REP_BLOCK_LABELS = new Set(['営業所計', 'その他担当者'])
+
+export async function parseHanbaiBunruiWorkbook(file) {
+  return parseHanbaiBunruiFromWorkbook(await loadWorkbook(file))
+}
+
+function parseHanbaiBunruiFromWorkbook(workbook) {
+  const sheet = findHanbaiBunruiSheet(workbook)
+  if (!sheet) throw new Error('「販売区分・商品分類別 販売売上」という名前のシートが見つかりませんでした。')
+
+  // タイトル部分（例:「2026年度 7月　販売区分・商品分類別 販売売上　【 行橋営業所 】」）から営業所・年度・月を読み取る。
+  let officeName = null, fiscalYear = null, monthKey = null
+  for (let r = 1; r <= Math.min(sheet.rowCount, 8) && (!officeName || !fiscalYear); r++) {
+    const row = sheet.getRow(r)
+    for (let c = 1; c <= sheet.columnCount; c++) {
+      const text = cellText(row, c)
+      if (!text) continue
+      const officeMatch = text.match(/【\s*(.+?)\s*】/)
+      if (officeMatch && !officeName) officeName = /営業所$/.test(officeMatch[1]) ? officeMatch[1] : `${officeMatch[1]}営業所`
+      const dateMatch = text.match(/(\d{4})年度\s*(\d{1,2})月/)
+      if (dateMatch && fiscalYear == null) { fiscalYear = Number(dateMatch[1]); monthKey = dateMatch[2].padStart(2, '0') }
+    }
+  }
+  if (!officeName) throw new Error('シートのタイトルから営業所名（【　○○営業所　】）を読み取れませんでした。')
+
+  // 「営業所計／久保　匠史／土居　翔太…」のように担当者名が並ぶ行を探す。各名前セルの列が、
+  // その担当者ブロック（件数・売上額・構成比・利益額・利益率の5列）の先頭列になる。
+  let blocks = null
+  for (let r = 1; r <= Math.min(sheet.rowCount, 12) && !blocks; r++) {
+    const row = sheet.getRow(r)
+    const found = []
+    for (let c = 1; c <= sheet.columnCount; c++) {
+      const text = cellText(row, c).replace(/[\s　]+/g, '')
+      if (!text) continue
+      if (text === '営業所計') found.push({ col: c, name: null, isOffice: true })
+      else if (!NON_REP_BLOCK_LABELS.has(text) && !/^\d+$/.test(text) && found.length) found.push({ col: c, name: text })
+    }
+    if (found.some((f) => f.isOffice)) blocks = found.filter((f) => !f.isOffice)
+  }
+  if (!blocks || !blocks.length) throw new Error('シートから担当者ごとの列見出し（営業所計・担当者名）を読み取れませんでした。')
+
+  const reps = {}
+  for (let r = 1; r <= sheet.rowCount; r++) {
+    const row = sheet.getRow(r)
+    const label = cellText(row, 1) || cellText(row, 2)
+    const matched = HANBAI_ROW_MAP.find(([re]) => re.test(label))
+    if (!matched) continue
+    const itemName = matched[1]
+    for (const block of blocks) {
+      const kensu = Math.round(cellNumber(row, block.col))
+      const uriage = Math.round(cellNumber(row, block.col + 1))
+      if (!reps[block.name]) reps[block.name] = {}
+      reps[block.name][itemName] = { jissekiKensu: kensu, jissekiUriage: uriage }
+    }
+  }
+  if (!Object.keys(reps).length) throw new Error('シートから住宅改修・福祉用具・紙おむつ・消耗品の行が見つかりませんでした。')
+
+  return { fiscalYear, monthKey, offices: { [officeName]: { reps } } }
+}
+
 // ファイルの中身を見て、どちらの形式かを自動判定して読み込む。
 export async function parseSalesWorkbookAuto(file) {
   // Excelの解析は重いので、判定と読み取りで1回のロードを使い回す。
@@ -213,5 +286,9 @@ export async function parseSalesWorkbookAuto(file) {
     const { fiscalYear, offices } = parseRepPerformanceFromWorkbook(workbook)
     return { type: 'performance', fiscalYear, data: offices }
   }
-  throw new Error('対応している売上状況報告書・担当別売上実績のシートが見つかりませんでした。')
+  if (findHanbaiBunruiSheet(workbook)) {
+    const { fiscalYear, monthKey, offices } = parseHanbaiBunruiFromWorkbook(workbook)
+    return { type: 'hanbaiBunrui', fiscalYear, monthKey, data: offices }
+  }
+  throw new Error('対応している売上状況報告書・担当別売上実績・商品分類別販売売上のシートが見つかりませんでした。')
 }

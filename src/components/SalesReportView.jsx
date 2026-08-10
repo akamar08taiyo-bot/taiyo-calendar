@@ -7,7 +7,7 @@ import {
   HANBAI_ITEMS, emptyHanbaiUchiwake, sumHanbaiUchiwake,
   emptyTarget,
   getOfficeReport, updateOfficeReport, updateRepEntry, addRep, removeRep,
-  applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedVisitFigures, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
+  applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedHanbaiFigures, applyImportedVisitFigures, pickOfficeData, getYearMonths, listFiscalYears, DEFAULT_FISCAL_YEAR,
 } from '../salesReportData'
 import { parseSalesWorkbookAuto } from '../salesReportExcelImport'
 import { parseVisitLogWorkbook } from '../visitLogImport'
@@ -69,13 +69,33 @@ function BudgetCell({ label, jisseki, yosan }) {
   )
 }
 
-// 月報タブの数字ブロック：レンタル（実績値・累計・新規納品/前月回収/当月回収）と、
+// 単月の金額を表示する1マス。editableならその場で修正できる数値入力、そうでなければ読み取り専用表示。
+function ThreerowCell({ label, value, onChange, editable }) {
+  return (
+    <div className="srv-threerow-cell">
+      <span>{label}</span>
+      {editable ? (
+        <span className="srv-threerow-input-wrap">
+          <input type="number" className="srv-threerow-input" value={value === 0 ? 0 : value || ''} onChange={(e) => onChange(Number(e.target.value) || 0)} />
+          <em>千円</em>
+        </span>
+      ) : (
+        <strong>{yen(value)}<em>千円</em></strong>
+      )}
+    </div>
+  )
+}
+
+// 月報タブの数字ブロック：レンタル（実績値・累計・新規納品/前月回収/当月回収/目標/目標差）と、
 // 住宅改修／商品販売／物販合計（単月・年度累計）を色分けして表示する。営業所合計・個人ページ共通。
-function SalesSummaryBlock({ sales, monthLabel, fiscalYear }) {
+// 個人ページ（editable=true）では新規納品・前月回収・当月回収・目標値をここで直接修正できる
+// （担当者タブ下部の「月間売上・年度累計」欄との重複表示を避けるため、入力箇所はここに一本化している）。
+function SalesSummaryBlock({ sales, monthLabel, fiscalYear, editable, onChangeSales }) {
   const hanbaiYosanKei = (sales.hanbaiYosan || 0) + (sales.kaishuuYosan || 0)
   const hanbaiUriageKei = (sales.hanbaiUriage || 0) + (sales.kaishuuUriage || 0)
   const hanbaiYosanKeiAtsumu = (sales.hanbaiYosanAtsumu || 0) + (sales.kaishuuYosanAtsumu || 0)
   const hanbaiUriageKeiAtsumu = (sales.hanbaiUriageAtsumu || 0) + (sales.kaishuuUriageAtsumu || 0)
+  const mokuhyouZa = (sales.rentalNouhinKeikei || 0) - (sales.mokuhyou || 0)
 
   return (
     <div className="srv-sales-summary">
@@ -84,10 +104,12 @@ function SalesSummaryBlock({ sales, monthLabel, fiscalYear }) {
           <BudgetCell label={`${monthLabel}レンタル実績値`} jisseki={sales.rentalJissekiTanki} yosan={sales.rentalYosanTanki} />
           <BudgetCell label={`${fiscalYear}年度累計レンタル実績値`} jisseki={sales.rentalJissekiAtsumu} yosan={sales.rentalYosanAtsumu} />
         </div>
-        <div className="srv-threerow">
-          <div className="srv-threerow-cell"><span>{monthLabel}新規納品金額</span><strong>{yen(sales.rentalNouhinKeikei)}<em>千円</em></strong></div>
-          <div className="srv-threerow-cell"><span>前月回収金額</span><strong>{yen(sales.zenGetsuKaishu)}<em>千円</em></strong></div>
-          <div className="srv-threerow-cell"><span>当月回収金額</span><strong>{yen(sales.touGetsuKaishu)}<em>千円</em></strong></div>
+        <div className="srv-threerow srv-threerow-5">
+          <ThreerowCell label={`${monthLabel}新規納品金額`} value={sales.rentalNouhinKeikei} editable={editable} onChange={(v) => onChangeSales?.('rentalNouhinKeikei', v)} />
+          <ThreerowCell label="前月回収金額" value={sales.zenGetsuKaishu} editable={editable} onChange={(v) => onChangeSales?.('zenGetsuKaishu', v)} />
+          <ThreerowCell label="当月回収金額" value={sales.touGetsuKaishu} editable={editable} onChange={(v) => onChangeSales?.('touGetsuKaishu', v)} />
+          <ThreerowCell label="新規レンタル納品目標額" value={sales.mokuhyou} editable={editable} onChange={(v) => onChangeSales?.('mokuhyou', v)} />
+          <div className="srv-threerow-cell"><span>売上目標差</span><strong className={mokuhyouZa >= 0 ? 'srv-plus' : 'srv-minus'}>{yen(mokuhyouZa)}<em>千円</em></strong></div>
         </div>
       </div>
       <div className="srv-sales-group srv-sales-group-other">
@@ -258,7 +280,7 @@ function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalY
 
   return (
     <div className="srv-panel">
-      <SalesSummaryBlock sales={sales} monthLabel={MONTH_LABELS[monthKeyOfEntry]} fiscalYear={fiscalYearOfEntry} />
+      <SalesSummaryBlock sales={sales} monthLabel={MONTH_LABELS[monthKeyOfEntry]} fiscalYear={fiscalYearOfEntry} editable onChangeSales={setSales} />
 
       <div className="srv-card">
         <b>訪問実績</b>
@@ -267,15 +289,7 @@ function RepEditView({ repName, entry, onChange, goals, monthKeyOfEntry, fiscalY
 
       <div className="srv-card srv-print-hide">
         <b>月間売上・年度累計（千円・手入力）</b>
-        <div className="srv-group">
-          <div className="srv-group-title">レンタル（売上状況報告書）</div>
-          <div className="srv-big-grid">
-            <BigField label="新規納品金額" value={sales.rentalNouhinKeikei} onChange={(v) => setSales('rentalNouhinKeikei', v)} suffix="千円" />
-            <BigField label="前月回収金額" value={sales.zenGetsuKaishu} onChange={(v) => setSales('zenGetsuKaishu', v)} suffix="千円" />
-            <BigField label="当月回収金額" value={sales.touGetsuKaishu} onChange={(v) => setSales('touGetsuKaishu', v)} suffix="千円" />
-            <BigField label="目標値" value={sales.mokuhyou} onChange={(v) => setSales('mokuhyou', v)} suffix="千円" />
-          </div>
-        </div>
+        <div className="srv-note" style={{ marginTop: 4 }}>※ 新規納品金額・前月回収金額・当月回収金額・新規レンタル納品目標額は、上部の集計欄で直接修正できます。</div>
         <div className="srv-group">
           <div className="srv-group-title">レンタル（担当別売上実績）</div>
           <div className="srv-big-grid">
@@ -429,19 +443,27 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
       if (result.type === 'status') {
         const targetYear = result.fiscalYear ?? fiscalYear
         const targetMonth = result.monthKey ?? monthKey
-        const summary = applyImportedSalesFigures(targetYear, targetMonth, result.data)
+        const summary = applyImportedSalesFigures(targetYear, targetMonth, pickOfficeData(result.data, officeName))
         const total = summary.updated.length + summary.created.length
         const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
         return `売上状況報告書：${targetYear}年度${MONTH_LABELS[targetMonth]}分を${total}件の担当者に反映${note}`
       }
+      if (result.type === 'hanbaiBunrui') {
+        const targetYear = result.fiscalYear ?? fiscalYear
+        const targetMonth = result.monthKey ?? monthKey
+        const summary = applyImportedHanbaiFigures(targetYear, targetMonth, pickOfficeData(result.data, officeName))
+        const total = summary.updated.length + summary.created.length
+        const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
+        return `商品分類別販売売上：${targetYear}年度${MONTH_LABELS[targetMonth]}分を${total}件の担当者に反映${note}`
+      }
       const targetYear = result.fiscalYear ?? fiscalYear
-      const summary = applyImportedSalesFiguresMultiMonth(targetYear, result.data)
+      const summary = applyImportedSalesFiguresMultiMonth(targetYear, pickOfficeData(result.data, officeName))
       const total = summary.updated.length + summary.created.length
       const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
       return `担当別売上実績：${targetYear}年度${summary.months.map((k) => MONTH_LABELS[k]).join('・')}分を${total}件の担当者に反映${note}`
     }
     const result = await parseVisitLogWorkbook(file)
-    const summary = applyImportedVisitFigures(result.offices)
+    const summary = applyImportedVisitFigures(pickOfficeData(result.offices, officeName))
     const total = summary.updated.length + summary.created.length
     const note = summary.created.length ? `（新規追加：${summary.created.join('、')}）` : ''
     return `訪問ログ：${result.matchedRows}/${result.totalRows}件を${total}件の担当者に反映${note}`
@@ -485,12 +507,22 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
       </div>
       <div className="srv-month-title">{calendarYear}年{MONTH_LABELS[monthKey]}　【{officeName}】</div>
 
-      <div className="srv-import-bar">
-        <label className="srv-import-btn">
-          {importBusy ? '取り込み中…' : 'Excelを取り込む（売上状況報告書／担当別売上実績／訪問ログ・複数選択可）'}
+      <div className="srv-import-card">
+        <label className="srv-import-card-btn">
+          <Icon name="upload" size={24} />
+          <span>{importBusy ? '取り込み中…' : 'Excelを取り込む'}</span>
           <input type="file" accept=".xlsx,.xlsm,.xls,.csv" multiple disabled={importBusy} onChange={handleImportFile} hidden />
         </label>
-        <span className="srv-import-hint">各ファイルの年度・月はファイルの中身から自動判定します（複数ファイルをまとめて選択できます）</span>
+        <div className="srv-import-card-body">
+          <div className="srv-import-card-title">取り込めるファイル（複数まとめて選択できます）</div>
+          <ul className="srv-import-list">
+            <li>売上状況報告書（新規納品・前月回収・当月回収・目標額）</li>
+            <li>営業所／担当別売上実績（レンタル・住宅改修・商品販売の予算と実績）</li>
+            <li>販売区分・商品分類別 販売売上（住宅改修／福祉用具／紙おむつ／消耗品の件数・売上）</li>
+            <li>訪問ログ（担当者別の訪問実績・全月分に自動反映）</li>
+          </ul>
+          <span className="srv-import-hint">年度・月・営業所はファイルの中身から自動判定し、「{officeName}」のデータだけを反映します。同じ月を取り込み直すと上書きされます。</span>
+        </div>
       </div>
       {importMessage && <div className={`srv-import-msg ${importMessage.type}`}>{importMessage.text}</div>}
 

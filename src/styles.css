@@ -36,6 +36,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .button-primary:hover:not(:disabled) { border-color: var(--teal-deep); background: var(--teal-deep); }
 .button-danger { color: #a33131; border-color: #e7bcbc; background: #fff7f7; }
 .button-danger:hover:not(:disabled) { border-color: #d38c8c; background: var(--danger-soft); }
+.button-import-highlight { min-height: 46px; padding: 0 20px; font-size: 15px; box-shadow: 0 6px 16px rgba(7, 139, 142, .28); }
+.button-import-highlight:hover:not(:disabled) { box-shadow: 0 8px 18px rgba(7, 139, 142, .34); }
 .icon-button { width: 38px; height: 38px; padding: 0; border: 1px solid var(--line); border-radius: 8px; display: inline-grid; place-items: center; color: #526a80; background: #fff; }
 .icon-button:hover { color: var(--teal-deep); border-color: #9bc9ca; }
 .spinner { width: 24px; height: 24px; border: 3px solid #d5e5e7; border-top-color: var(--teal); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
@@ -1013,7 +1015,7 @@ th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
   body.srv-printing .sidebar, body.srv-printing .topbar { display: none !important; }
   body.srv-printing .page-content { padding: 0 !important; }
   body.srv-printing .srv-sub-tabs, body.srv-printing .srv-month-switch, body.srv-printing .srv-year-switch, body.srv-printing .srv-rep-tabs,
-  body.srv-printing .srv-import-bar, body.srv-printing .srv-import-msg, body.srv-printing .srv-print-bar,
+  body.srv-printing .srv-import-card, body.srv-printing .srv-import-msg, body.srv-printing .srv-print-bar,
   body.srv-printing .srv-rep-delete-btn, body.srv-printing .srv-add-rep, body.srv-printing .srv-goal-block > button,
   body.srv-printing .srv-rep-remove, body.srv-printing .srv-print-hide { display: none !important; }
   body.srv-printing .srv-big-input, body.srv-printing .srv-num-input, body.srv-printing .srv-text-input,
@@ -1046,11 +1048,15 @@ th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
   body.srv-printing .srv-print-onepage textarea { height: 70px !important; }
 }
 
-/* ---------- Excel取込バー ---------- */
-.srv-import-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
-.srv-import-btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border: 1px solid var(--teal); border-radius: 10px;
-  background: #eef7f6; color: var(--teal-deep); font-size: 13px; font-weight: 800; cursor: pointer; transition: .15s; }
-.srv-import-btn:hover { background: var(--teal); color: #fff; }
+/* ---------- Excel取込カード ---------- */
+.srv-import-card { display: flex; align-items: stretch; gap: 18px; margin-top: 12px; padding: 16px; border: 1.5px solid var(--teal); border-radius: 14px;
+  background: linear-gradient(135deg, #eef7f6, #f7fbfa); flex-wrap: wrap; }
+.srv-import-card-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 168px; padding: 18px 14px;
+  border-radius: 12px; background: var(--teal); color: #fff; font-size: 15px; font-weight: 900; cursor: pointer; transition: .15s; text-align: center; }
+.srv-import-card-btn:hover { background: var(--teal-deep); }
+.srv-import-card-body { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.srv-import-card-title { color: var(--teal-deep); font-size: 13px; font-weight: 900; }
+.srv-import-list { margin: 0; padding-left: 18px; color: #3c4d5c; font-size: 12.5px; font-weight: 700; line-height: 1.7; }
 .srv-import-hint { color: #6b7d8f; font-size: 12px; }
 .srv-import-msg { margin-top: 8px; padding: 10px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; }
 .srv-import-msg.ok { background: #eef9f3; border: 1px solid #b8e2c8; color: #1c6b42; }
@@ -1076,6 +1082,11 @@ th.srv-visit-total-col { background: #eef7f6; color: var(--teal-deep); }
 .srv-threerow-cell strong { color: var(--teal-deep); font-size: 20px; font-weight: 900; }
 .srv-threerow-cell strong em { margin-left: 4px; color: #5c6f80; font-size: 12px; font-style: normal; font-weight: 800; }
 .srv-threerow { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.srv-threerow-input-wrap { display: flex; align-items: baseline; gap: 6px; }
+.srv-threerow-input { width: 100%; height: 34px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 7px;
+  font-size: 18px; font-weight: 900; color: var(--teal-deep); background: #fbfefd; }
+.srv-threerow-input:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(15,154,142,.14); }
+.srv-threerow-input-wrap em { color: #5c6f80; font-size: 12px; font-style: normal; font-weight: 800; }
 
 .srv-budget-row-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .srv-budget-cell { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }

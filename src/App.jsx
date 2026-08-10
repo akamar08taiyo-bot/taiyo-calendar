@@ -10,7 +10,7 @@ import { PrintView } from './components/PrintView'
 import { SalesReportView } from './components/SalesReportView'
 import { parseSalesWorkbookAuto } from './salesReportExcelImport'
 import { parseVisitLogWorkbook } from './visitLogImport'
-import { applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedVisitFigures, DEFAULT_FISCAL_YEAR, MONTH_LABELS } from './salesReportData'
+import { applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedHanbaiFigures, applyImportedVisitFigures, pickOfficeData, DEFAULT_FISCAL_YEAR, MONTH_LABELS } from './salesReportData'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 const fiscalFor = (month) => { const [year, number] = month.split('-').map(Number); return number >= 4 ? year : year - 1 }
@@ -272,12 +272,19 @@ export default function App() {
       if (result.type === 'status') {
         const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
         const targetMonth = result.monthKey ?? month.split('-')[1]
-        const summary = applyImportedSalesFigures(targetYear, targetMonth, result.data)
+        const summary = applyImportedSalesFigures(targetYear, targetMonth, pickOfficeData(result.data, session.office.name))
         const total = summary.updated.length + summary.created.length
         return `売上状況報告書を営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に反映しました（${total}件）。`
       }
+      if (result.type === 'hanbaiBunrui') {
+        const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
+        const targetMonth = result.monthKey ?? month.split('-')[1]
+        const summary = applyImportedHanbaiFigures(targetYear, targetMonth, pickOfficeData(result.data, session.office.name))
+        const total = summary.updated.length + summary.created.length
+        return `商品分類別販売売上を営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に反映しました（${total}件）。`
+      }
       const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
-      const summary = applyImportedSalesFiguresMultiMonth(targetYear, result.data)
+      const summary = applyImportedSalesFiguresMultiMonth(targetYear, pickOfficeData(result.data, session.office.name))
       const total = summary.updated.length + summary.created.length
       return `担当別売上実績を営業月報（${targetYear}年度）に反映しました（${total}件、${summary.months.length}ヶ月分）。`
     }
@@ -285,7 +292,7 @@ export default function App() {
       let result
       try { result = await parseVisitLogWorkbook(file) }
       catch { return null }
-      const summary = applyImportedVisitFigures(result.offices)
+      const summary = applyImportedVisitFigures(pickOfficeData(result.offices, session.office.name))
       const total = summary.updated.length + summary.created.length
       return `訪問ログを営業月報の訪問実績に反映しました（${result.matchedRows}/${result.totalRows}件、${total}名分）。`
     }
