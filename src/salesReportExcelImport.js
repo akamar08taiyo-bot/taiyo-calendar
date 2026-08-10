@@ -63,7 +63,11 @@ async function loadWorkbook(file) {
   if (!/\.(xlsx|xlsm)$/i.test(file.name)) throw new Error('取り込めるのは .xlsx または .xlsm 形式です。')
   if (file.size > 25 * 1024 * 1024) throw new Error('Excelファイルは25MB以下にしてください。')
   const rawBuffer = await file.arrayBuffer()
-  const { default: ExcelJS } = await import('exceljs')
+  let ExcelJS
+  // アプリが更新された直後は、開いたままのページが古いままだと解析部品の読み込みに失敗することがある。
+  // その場合は「壊れたファイル」ではなく「ページの再読み込みが必要」という分かりやすい案内にする。
+  try { ExcelJS = (await import('exceljs')).default }
+  catch { throw new Error('アプリが更新されたため、読み込みに失敗しました。ページを再読み込み（F5）してから、もう一度お試しください。') }
   const workbook = new ExcelJS.Workbook()
   // 値しか使わないため、書式・ハイパーリンクの解析は省いて読み込みを軽くする。
   const loadOptions = { ignoreNodes: ['dataValidations', 'hyperlinks', 'conditionalFormatting'] }

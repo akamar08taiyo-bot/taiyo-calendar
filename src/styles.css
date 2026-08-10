@@ -124,6 +124,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .index-col { left: 0; width: 36px; min-width: 36px; max-width: 36px; }
 .provider-col { left: 36px; width: 210px; min-width: 210px; max-width: 210px; text-align: left !important; }
 .staff-col { left: 246px; width: 96px; min-width: 96px; max-width: 96px; }
+.sales-col { left: 342px; width: 88px; min-width: 88px; max-width: 88px; text-align: right !important; padding-right: 6px !important; font-weight: 700; }
 .visit-table thead .sticky-left { z-index: 9; background: var(--sheet-gray); }
 .row-index { color: #222; font-weight: 400; }
 .provider-name { padding-left: 8px !important; }
@@ -761,6 +762,7 @@ tr.is-divergent th { color: #a3355a; }
   .calendar-summary { width: min(600px, 100%); }
   .provider-col { left: 36px; width: 175px; min-width: 175px; max-width: 175px; }
   .staff-col { left: 211px; }
+  .sales-col { left: 307px; }
   .kpi-grid { grid-template-columns: repeat(3, 1fr); }
   .sales-insight-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
@@ -814,6 +816,7 @@ tr.is-divergent th { color: #a3355a; }
   .index-col { width: 36px; min-width: 36px; max-width: 36px; }
   .provider-col { left: 36px; width: 162px; min-width: 162px; max-width: 162px; }
   .staff-col { left: 198px; width: 100px; min-width: 100px; max-width: 100px; }
+  .sales-col { left: 298px; width: 80px; min-width: 80px; max-width: 80px; }
   .summary-col { position: static !important; }
   .visit-table th, .visit-table td { height: 46px; }
   .visit-button { min-height: 44px; }

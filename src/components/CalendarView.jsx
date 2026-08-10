@@ -1,12 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { daysForMonth, visitValueLabel } from '../calendar-utils'
 import { Button, Icon } from './Icon'
+import { getOfficeProviderSales, findProviderSales } from '../providerSalesData'
+
+// 千円単位で表示する（「居宅別売上推移表」を取り込んでいない居宅・未取込の月は「—」）。
+function salesThousandLabel(yen) {
+  if (yen == null) return '—'
+  return `${Math.round(yen / 1000).toLocaleString('ja-JP')}千円`
+}
 
 export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onChangeKind, onOpenHidden, onOpenImport, onOpenPdf, onOpenPrint, onOpenAnalysis, canImport }) {
   const [selected, setSelected] = useState(null)
   const [attendanceDraft, setAttendanceDraft] = useState('0')
   const days = useMemo(() => daysForMonth(month), [month])
   const providers = useMemo(() => (calendar?.providers || []).filter((provider) => `${provider.name}${provider.staffName}${provider.externalCode}`.toLowerCase().includes(search.trim().toLowerCase())), [calendar, search])
+  // 「居宅別売上推移表」を取り込むと反映される、居宅ごとの今月売上（取込直後にも反映されるよう、
+  // useMemoでキャッシュせずレンダーのたびにlocalStorageから読み直す）。
+  const officeSales = getOfficeProviderSales(officeName)
+  const providerMonthlySales = (provider) => findProviderSales(officeSales, provider.name)?.monthlySales?.[month]
   const [year, monthNumber] = month.split('-').map(Number)
   const fiscalYear = monthNumber >= 4 ? year : year - 1
   const selectedProvider = selected && calendar?.providers.find((provider) => provider.id === selected.providerId)
@@ -81,13 +92,13 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
       <div className="table-scroll">
         <table className="visit-table">
           <thead><tr>
-            <th className="index-col sticky-left">No.</th><th className="provider-col sticky-left">居宅名</th><th className="staff-col sticky-left">営業員</th>
+            <th className="index-col sticky-left">No.</th><th className="provider-col sticky-left">居宅名</th><th className="staff-col sticky-left">営業員</th><th className="sales-col sticky-left" title="「居宅別売上推移表」を取り込むと表示されます">今月売上</th>
             {days.map(({ day, weekday, label }) => <th key={day} className={`date-col ${weekday === 0 ? 'sunday' : weekday === 6 ? 'saturday' : ''}`}><span>{day}</span><small>{label}</small></th>)}
             <th className="summary-col summary-count">月間<br/>訪問回数</th>
           </tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={days.length + 4} className="empty-row"><div className="empty-state"><span className="spinner"/><strong>カレンダーを読み込み中…</strong></div></td></tr>}
-            {!loading && !providers.length && <tr><td colSpan={days.length + 4} className="empty-row"><div className="empty-state"><Icon name="search" size={25}/><strong>対象の事業者がありません</strong><span>検索条件または営業員を確認してください。</span></div></td></tr>}
+            {loading && <tr><td colSpan={days.length + 5} className="empty-row"><div className="empty-state"><span className="spinner"/><strong>カレンダーを読み込み中…</strong></div></td></tr>}
+            {!loading && !providers.length && <tr><td colSpan={days.length + 5} className="empty-row"><div className="empty-state"><Icon name="search" size={25}/><strong>対象の事業者がありません</strong><span>検索条件または営業員を確認してください。</span></div></td></tr>}
             {!loading && providers.map((provider, providerIndex) => <tr key={provider.id}>
               <th className="index-col row-index sticky-left">{providerIndex + 1}</th>
               <th className="provider-col provider-name sticky-left">
@@ -102,6 +113,7 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
                 <div className="row-actions"><button onClick={() => onHide(provider)}>非表示</button></div>
               </th>
               <td className="staff-col sticky-left">{provider.staffName}</td>
+              <td className="sales-col sticky-left">{salesThousandLabel(providerMonthlySales(provider))}</td>
               {days.map(({ day, weekday }) => {
                 const visit = provider.visits[String(day)] || { count: 0, version: 0 }
                 const key = `${provider.id}-${day}`
@@ -114,6 +126,7 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
           </tbody>
           {!loading && providers.length > 0 && <tfoot><tr>
             <th className="index-col aggregate-index sticky-left">計</th><th className="provider-col aggregate-label sticky-left">表示中の合計</th><td className="staff-col sticky-left">—</td>
+            <td className="sales-col sticky-left">{salesThousandLabel(providers.reduce((sum, provider) => sum + (providerMonthlySales(provider) || 0), 0) || null)}</td>
             {dayTotals.map((total, index) => <td className="aggregate-day" key={index}>{total || ''}</td>)}
             <td className="summary-col summary-count">{providers.reduce((sum, provider) => sum + provider.visitTotal, 0)}</td>
           </tr></tfoot>}

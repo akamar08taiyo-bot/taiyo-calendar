@@ -74,7 +74,9 @@ async function readRecords(file) {
     if (records) return records
   }
 
-  const { default: XLSX } = await import('xlsx')
+  let XLSX
+  try { XLSX = (await import('xlsx')).default }
+  catch { throw new Error('アプリが更新されたため、読み込みに失敗しました。ページを再読み込み（F5）してから、もう一度お試しください。') }
   let workbook
   try { workbook = XLSX.read(buffer, { type: 'array', codepage: 932 }) }
   catch { throw new Error('ファイルを読み取れませんでした。訪問ログのCSVまたはExcelを選択してください。') }

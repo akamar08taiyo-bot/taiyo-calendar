@@ -270,41 +270,49 @@ export default function App() {
     if (/\.(xlsx|xlsm)$/i.test(file.name)) {
       let result
       try { result = await parseSalesWorkbookAuto(file) }
-      catch {
+      catch (firstError) {
+        // アプリ更新直後の読み込み失敗は「対応していない形式」ではないため、フォールバックさせずそのまま伝える。
+        if (/アプリが更新されたため/.test(firstError.message)) throw firstError
         // 売上状況報告書／担当別売上実績／商品分類別販売売上のいずれでもなければ、居宅別売上推移表として試す。
         let trend
         try { trend = await parseProviderSalesWorkbook(file) }
-        catch { return null }
+        catch (secondError) {
+          if (/アプリが更新されたため/.test(secondError.message)) throw secondError
+          return null
+        }
         const officeEntry = pickOfficeData(trend.offices, session.office.name)[session.office.name]
         const summary = applyImportedProviderSales(session.office.name, officeEntry)
-        return `居宅別売上推移表を実績分析（${trend.fiscalYear}年度）に反映しました（${summary.providerCount}件の居宅）。`
+        return `✓ 居宅別売上推移表を取り込みました（${trend.fiscalYear}年度・${summary.providerCount}件の居宅）。居宅カレンダーの各行と実績分析に今月売上として反映されます。`
       }
       if (result.type === 'status') {
         const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
         const targetMonth = result.monthKey ?? month.split('-')[1]
         const summary = applyImportedSalesFigures(targetYear, targetMonth, pickOfficeData(result.data, session.office.name))
         const total = summary.updated.length + summary.created.length
-        return `売上状況報告書を営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に反映しました（${total}件）。`
+        return `✓ 売上状況報告書を取り込みました。営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に${total}件の担当者分を反映しました。`
       }
       if (result.type === 'hanbaiBunrui') {
         const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
         const targetMonth = result.monthKey ?? month.split('-')[1]
         const summary = applyImportedHanbaiFigures(targetYear, targetMonth, pickOfficeData(result.data, session.office.name))
         const total = summary.updated.length + summary.created.length
-        return `商品分類別販売売上を営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に反映しました（${total}件）。`
+        return `✓ 商品分類別販売売上を取り込みました。営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に${total}件の担当者分を反映しました。`
       }
       const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
       const summary = applyImportedSalesFiguresMultiMonth(targetYear, pickOfficeData(result.data, session.office.name))
       const total = summary.updated.length + summary.created.length
-      return `担当別売上実績を営業月報（${targetYear}年度）に反映しました（${total}件、${summary.months.length}ヶ月分）。`
+      return `✓ 担当別売上実績を取り込みました。営業月報（${targetYear}年度）に${total}件の担当者分・${summary.months.length}ヶ月分を反映しました。`
     }
     if (/\.(xls|csv)$/i.test(file.name)) {
       let result
       try { result = await parseVisitLogWorkbook(file) }
-      catch { return null }
+      catch (error) {
+        if (/アプリが更新されたため/.test(error.message)) throw error
+        return null
+      }
       const summary = applyImportedVisitFigures(pickOfficeData(result.offices, session.office.name))
       const total = summary.updated.length + summary.created.length
-      return `訪問ログを営業月報の訪問実績に反映しました（${result.matchedRows}/${result.totalRows}件、${total}名分）。`
+      return `✓ 訪問ログを取り込みました。営業月報の訪問実績に${result.matchedRows}/${result.totalRows}件・${total}名分を反映しました。`
     }
     return null
   }

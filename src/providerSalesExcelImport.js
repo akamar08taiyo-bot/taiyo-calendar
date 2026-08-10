@@ -27,7 +27,9 @@ async function loadWorkbook(file) {
   if (!/\.(xlsx|xlsm)$/i.test(file.name)) throw new Error('取り込めるのは .xlsx または .xlsm 形式です。')
   if (file.size > 25 * 1024 * 1024) throw new Error('Excelファイルは25MB以下にしてください。')
   const buffer = await file.arrayBuffer()
-  const { default: ExcelJS } = await import('exceljs')
+  let ExcelJS
+  try { ExcelJS = (await import('exceljs')).default }
+  catch { throw new Error('アプリが更新されたため、読み込みに失敗しました。ページを再読み込み（F5）してから、もう一度お試しください。') }
   const workbook = new ExcelJS.Workbook()
   try { await workbook.xlsx.load(buffer, { ignoreNodes: ['dataValidations', 'hyperlinks', 'conditionalFormatting'] }) }
   catch { throw new Error('Excelファイルを読み取れませんでした。パスワード保護を解除し、.xlsx形式で保存し直してください。') }

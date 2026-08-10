@@ -11,6 +11,8 @@ import {
 } from '../salesReportData'
 import { parseSalesWorkbookAuto } from '../salesReportExcelImport'
 import { parseVisitLogWorkbook } from '../visitLogImport'
+import { parseProviderSalesWorkbook } from '../providerSalesExcelImport'
+import { applyImportedProviderSales } from '../providerSalesData'
 import { downloadElementPdf } from '../pdf-export'
 
 const yen = (n) => `${Math.round(Number(n) || 0).toLocaleString('ja-JP')}`
@@ -439,7 +441,16 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
 
   async function importOneFile(file) {
     if (/\.(xlsx|xlsm)$/i.test(file.name)) {
-      const result = await parseSalesWorkbookAuto(file)
+      let result
+      try { result = await parseSalesWorkbookAuto(file) }
+      catch (firstError) {
+        if (/アプリが更新されたため/.test(firstError.message)) throw firstError
+        // 売上状況報告書／担当別売上実績／商品分類別販売売上のいずれでもなければ、居宅別売上推移表として試す。
+        const trend = await parseProviderSalesWorkbook(file)
+        const officeEntry = pickOfficeData(trend.offices, officeName)[officeName]
+        const summary = applyImportedProviderSales(officeName, officeEntry)
+        return `居宅別売上推移表：${trend.fiscalYear}年度分を${summary.providerCount}件の居宅に反映（居宅カレンダー・実績分析に表示されます）`
+      }
       if (result.type === 'status') {
         const targetYear = result.fiscalYear ?? fiscalYear
         const targetMonth = result.monthKey ?? monthKey
@@ -519,6 +530,7 @@ function MonthlyReportTab({ officeName, report, fiscalYear, setFiscalYear, month
             <li>売上状況報告書（新規納品・前月回収・当月回収・目標額）</li>
             <li>営業所／担当別売上実績（レンタル・住宅改修・商品販売の予算と実績）</li>
             <li>販売区分・商品分類別 販売売上（住宅改修／福祉用具／紙おむつ／消耗品の件数・売上）</li>
+            <li>居宅別売上推移表（居宅ごとの月次売上。居宅カレンダー・実績分析に反映）</li>
             <li>訪問ログ（担当者別の訪問実績・全月分に自動反映）</li>
           </ul>
           <span className="srv-import-hint">年度・月・営業所はファイルの中身から自動判定し、「{officeName}」のデータだけを反映します。同じ月を取り込み直すと上書きされます。</span>
