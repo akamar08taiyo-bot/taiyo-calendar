@@ -5,7 +5,6 @@ import { CalendarView } from './components/CalendarView'
 import { HiddenDialog, ImportDialog, PdfDialog, SettingsDialog } from './components/Dialogs'
 import { Button, Icon } from './components/Icon'
 import { LoginScreen } from './components/LoginScreen'
-import { InitialImportScreen } from './components/InitialImportScreen'
 import { PrintView } from './components/PrintView'
 import { SalesReportView } from './components/SalesReportView'
 import { parseSalesWorkbookAuto } from './salesReportExcelImport'
@@ -35,10 +34,6 @@ function recomputeCalendar(calendar, providerId, day, visit) {
 
 export default function App() {
   const [booting, setBooting] = useState(true)
-  const [needsInitialImport, setNeedsInitialImport] = useState(() => api.needsInitialImport())
-  const [showStartScreen, setShowStartScreen] = useState(true)
-  const [initialImportBusy, setInitialImportBusy] = useState(false)
-  const [initialImportError, setInitialImportError] = useState('')
   const [offices, setOffices] = useState([])
   const [session, setSession] = useState(null)
   const [loginBusy, setLoginBusy] = useState(false)
@@ -78,13 +73,12 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (needsInitialImport) { setBooting(false); return }
     setBooting(true)
     Promise.all([api.publicOffices(), api.me().catch(() => null)]).then(([publicData, me]) => {
       setOffices(publicData.offices)
       if (me) { setCsrfToken(me.csrfToken); setSession(me) }
     }).finally(() => setBooting(false))
-  }, [needsInitialImport])
+  }, [])
 
   useEffect(() => {
     if (!session) return
@@ -160,27 +154,6 @@ export default function App() {
       setCsrfToken(result.csrfToken); setSession(result)
     } catch (error) { setLoginError(error.message) }
     finally { setLoginBusy(false) }
-  }
-
-  async function handleInitialImport(file) {
-    setInitialImportBusy(true)
-    setInitialImportError('')
-    try {
-      const result = await api.initialImport(file)
-      const publicData = await api.publicOffices()
-      setOffices(publicData.offices)
-      setCsrfToken('')
-      setSession(null)
-      setNeedsInitialImport(false)
-      setShowStartScreen(false)
-      setBooting(false)
-      setMonth(result.importedMonth)
-      setFiscalYear(fiscalFor(result.importedMonth))
-    } catch (error) {
-      setInitialImportError(error.message)
-    } finally {
-      setInitialImportBusy(false)
-    }
   }
 
   async function logout() {
@@ -441,7 +414,6 @@ export default function App() {
   const selectedStaffName = useMemo(() => staff.find((person) => person.id === selectedStaffId)?.name || '', [staff, selectedStaffId])
   const printStaffName = useMemo(() => staff.find((person) => person.id === printStaffId)?.name || '', [staff, printStaffId])
 
-  if (showStartScreen) return <InitialImportScreen onImport={handleInitialImport} onContinue={() => setShowStartScreen(false)} hasSavedData={!needsInitialImport} busy={initialImportBusy} error={initialImportError}/>
   if (booting) return <div className="boot-screen"><span className="spinner"/><strong>営業管理を起動しています…</strong></div>
   if (!session) return <LoginScreen offices={offices} onLogin={handleLogin} busy={loginBusy} error={loginError}/>
 

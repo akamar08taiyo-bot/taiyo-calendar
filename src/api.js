@@ -49,25 +49,23 @@ export function providerKindOf(provider) {
   return classifyProviderKind(provider?.name)
 }
 
+// 太陽シルバーサービス㈱の全19営業所。Excelを一度も取り込んでいない状態でも、
+// この固定リストから営業所を選んでログインし、ログイン後にExcelを取り込めるようにする
+// （営業所名はtaiyo-portal・給与系Excelの表記と統一している）。
+export const OFFICE_NAMES = [
+  '小倉営業所', '小倉南営業所', '八幡西営業所', '八幡東営業所', '行橋営業所', '田川営業所',
+  '飯塚営業所', '福岡南営業所', '福岡西営業所', '福岡東営業所', '久留米営業所', '大牟田営業所',
+  '佐賀営業所', '長崎営業所', '大村営業所', '壱岐営業所', '熊本営業所', '熊本北営業所', '大分営業所',
+]
+
+function officeSlug(name) { return name.replace('営業所', '') }
+
 function seed() {
-  const offices = Array.from({ length: 19 }, (_, index) => ({
-    id: `office-${String(index + 1).padStart(2, '0')}`,
-    name: index === 0 ? '行橋営業所' : `営業所${String(index + 2).padStart(2, '0')}`,
-  }))
-  const staff = [
-    { id: 'staff-miyamura', officeId: 'office-01', name: '宮村 茉梨香', role: 'staff', active: true },
-    { id: 'staff-kubo', officeId: 'office-01', name: '久保 匠史', role: 'staff', active: true },
-    { id: 'staff-admin', officeId: 'office-01', name: '営業所管理者', role: 'system_admin', active: true },
-  ]
-  const providers = [
-    ['provider-01', '4000000001', 'みやこ居宅介護支援事業所', 'staff-miyamura'],
-    ['provider-02', '4000000002', '行橋ケアプランセンター', 'staff-miyamura'],
-    ['provider-03', '4000000003', 'つばさ居宅介護支援', 'staff-miyamura'],
-    ['provider-04', '4000000004', 'さくらケアプラン', 'staff-kubo'],
-    ['provider-05', '4000000005', 'あおぞら居宅支援', 'staff-kubo'],
-  ].map(([id, code, name, staffId]) => ({ id, officeId: 'office-01', code, name, staffId, totalHomes: 1, hiddenAt: null, visits: {} }))
-  providers[0].visits[`${monthNow()}-02`] = { count: 1, version: 1, updatedAt: now() }
-  return { offices, staff, providers, imports: {}, attendanceDays: {}, retentionYears: 5, audit: [] }
+  const offices = OFFICE_NAMES.map((name) => ({ id: `office-${officeSlug(name)}`, name }))
+  // 各営業所に管理者アカウントを1件用意しておくことで、Excel未取込でもログインできる。
+  // 営業員（role: 'staff'）はExcel取込時に自動で追加される。
+  const staff = offices.map((office) => ({ id: `admin-${office.id}`, officeId: office.id, name: '営業所管理者', role: 'system_admin', active: true }))
+  return { offices, staff, providers: [], imports: {}, attendanceDays: {}, retentionYears: 5, audit: [] }
 }
 
 function cellText(cell) {
@@ -318,16 +316,20 @@ export async function parseCalendarWorkbook(file) {
   return parsed
 }
 
-function emptyData() {
-  return { offices: [], staff: [], providers: [], imports: {}, attendanceDays: {}, retentionYears: 5, audit: [], initializedAt: now() }
-}
-
 function rowMonths(row) {
   return [...new Set(Object.keys(row.visits || {}).map((date) => date.slice(0, 7)))]
 }
 
+// Excelの営業所名は「行橋」のように「営業所」抜きで入っていることがあるため、
+// ログイン済みの営業所（○○営業所）と同一のものとして扱えるよう表記をそろえる。
+function normalizeOfficeName(name) {
+  const trimmed = String(name || '').trim()
+  if (!trimmed) return '営業所'
+  return /営業所$/.test(trimmed) ? trimmed : `${trimmed}営業所`
+}
+
 function mergeImportedRows(data, rows) {
-  const incomingOfficeNames = [...new Set(rows.map((row) => row.officeName || '営業所'))]
+  const incomingOfficeNames = [...new Set(rows.map((row) => normalizeOfficeName(row.officeName)))]
   if (incomingOfficeNames.length > 19) throw new Error('1回に取り込める営業所は19営業所までです。')
 
   const officeByName = new Map(data.offices.map((office) => [office.name, office]))
@@ -341,7 +343,7 @@ function mergeImportedRows(data, rows) {
 
   const importedScopes = new Set()
   for (const row of rows) {
-    const office = officeByName.get(row.officeName || '営業所')
+    const office = officeByName.get(normalizeOfficeName(row.officeName))
     for (const month of rowMonths(row)) importedScopes.add(`${office.id}\u0000${month}`)
   }
 
@@ -367,7 +369,7 @@ function mergeImportedRows(data, rows) {
 
   let visitTotal = 0
   for (const row of rows) {
-    const office = officeByName.get(row.officeName || '営業所')
+    const office = officeByName.get(normalizeOfficeName(row.officeName))
     const staffKey = `${office.id}\u0000${row.staffName}`
     let staff = staffByOfficeAndName.get(staffKey)
     if (!staff) {
@@ -398,10 +400,6 @@ function mergeImportedRows(data, rows) {
   data.imports ||= {}
   data.attendanceDays ||= {}
   return { data, visitTotal, importedScopes: [...importedScopes] }
-}
-
-function dataFromImport(rows) {
-  return mergeImportedRows(emptyData(), rows).data
 }
 
 function load() {
@@ -455,31 +453,11 @@ function calendarResult(data, month, staffId, includeHidden) {
 export function setCsrfToken() {}
 
 export const api = {
-  needsInitialImport() {
-    return !localStorage.getItem(STORE_KEY)
-  },
-  async initialImport(file) {
-    const rows = await parseCalendarWorkbook(file)
-    const existing = localStorage.getItem(STORE_KEY) ? load() : null
-    const data = existing ? mergeImportedRows(existing, rows).data : dataFromImport(rows)
-    const importedMonth = [...new Set(rows.flatMap((row) => Object.keys(row.visits || {}).map((date) => date.slice(0, 7))))].sort().at(-1) || monthNow()
-    save(data)
-    sessionStorage.removeItem(SESSION_KEY)
-    const officeName = rows[0]?.officeName || '営業所'
-    const office = data.offices.find((row) => row.name === officeName)
-    return {
-      providerCount: rows.length,
-      staffCount: new Set(rows.map((row) => row.staffName)).size,
-      visitTotal: rows.reduce((sum, row) => sum + Object.values(row.visits).reduce((subtotal, visit) => subtotal + visit.count, 0), 0),
-      officeId: office?.id,
-      officeName,
-      importedMonth,
-    }
-  },
   async publicOffices() {
     const data = load()
     return {
-      offices: data.offices.filter((office) => data.staff.some((person) => person.officeId === office.id && person.role === 'staff')).map((office) => ({
+      // 全19営業所を常に選択肢として出す（Excel未取込でもログインでき、ログイン後に取り込む）。
+      offices: data.offices.map((office) => ({
         ...office,
         staff: [...staffForOffice(data, office.id)]
           .sort((left, right) => Number(left.role === 'staff') - Number(right.role === 'staff'))
@@ -537,18 +515,18 @@ export const api = {
     const batchId = crypto.randomUUID(); const data = load(); data.imports[batchId] = { rows, archiveMissing, name: file.name }; save(data)
     const officesByName = new Map(data.offices.map((office) => [office.name, office.id]))
     const existing = new Set(data.providers.map((row) => `${row.officeId}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`))
-    const added = rows.filter((row) => !existing.has(`${officesByName.get(row.officeName)}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`)).length
+    const added = rows.filter((row) => !existing.has(`${officesByName.get(normalizeOfficeName(row.officeName))}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`)).length
     const updated = rows.length - added
     const visitRows = rows.reduce((sum, row) => sum + Object.values(row.visits).reduce((subtotal, visit) => subtotal + visit.count, 0), 0)
     const months = [...new Set(rows.flatMap(rowMonths))].sort()
-    const officeNames = [...new Set(rows.map((row) => row.officeName))]
+    const officeNames = [...new Set(rows.map((row) => normalizeOfficeName(row.officeName)))]
     return { batchId, file: { name: file.name }, worksheetName: '訪問履歴', officeNames, months, diff: { added, updated, archived: 0, missing: 0, unchanged: 0, visitRows, uniqueVisits: visitRows, archiveMissing } }
   },
   async importConfirm(batchId) {
     const data = load(); const batch = data.imports[batchId]; if (!batch) throw new Error('取込データが見つかりません。')
     const { visitTotal: insertedVisits } = mergeImportedRows(data, batch.rows)
     const importedMonth = [...new Set(batch.rows.flatMap((row) => Object.keys(row.visits || {}).map((date) => date.slice(0, 7))))].sort().at(-1) || monthNow()
-    const officeName = batch.rows[0]?.officeName || ''
+    const officeName = normalizeOfficeName(batch.rows[0]?.officeName)
     const officeId = data.offices.find((office) => office.name === officeName)?.id || ''
     delete data.imports[batchId]; save(data); return { insertedVisits, importedMonth, officeId, officeName }
   },
