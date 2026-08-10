@@ -9,7 +9,7 @@ function salesThousandLabel(yen) {
   return `${Math.round(yen / 1000).toLocaleString('ja-JP')}千円`
 }
 
-export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onChangeKind, onOpenHidden, onOpenImport, onOpenPdf, onOpenPrint, onOpenAnalysis, canImport }) {
+export function CalendarView({ month, calendar, officeName, scopeLabel, staff, selectedStaffId, setSelectedStaffId, search, setSearch, canSelectStaff, loading, savingKey, attendanceSaving, onChangeMonth, onUpdateVisit, onUpdateAttendance, onHide, onChangeKind, onOpenHidden, onOpenImport, onOpenPdf, onOpenPrint, canImport }) {
   const [selected, setSelected] = useState(null)
   const [attendanceDraft, setAttendanceDraft] = useState('0')
   const days = useMemo(() => daysForMonth(month), [month])
@@ -45,10 +45,9 @@ export function CalendarView({ month, calendar, officeName, scopeLabel, staff, s
     <div className="page-header">
       <div><h1>居宅カレンダー</h1><p>{fiscalYear}年度・{year}年{monthNumber}月</p></div>
       <div className="page-header-actions">
-        {canImport && <Button icon="upload" variant="primary" className="button-import-highlight" onClick={onOpenImport}>Excelを取り込む（訪問履歴・売上報告）</Button>}
+        {canImport && <Button icon="upload" variant="primary" className="button-import-highlight" onClick={onOpenImport}>Excelを取り込む（訪問履歴）</Button>}
         <Button icon="printer" onClick={onOpenPrint}>印刷</Button>
         <Button icon="pdf" onClick={onOpenPdf}>この月をPDF</Button>
-        <Button icon="chart" onClick={onOpenAnalysis}>分析を見る</Button>
       </div>
     </div>
 

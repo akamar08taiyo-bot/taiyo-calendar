@@ -1,17 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, setCsrfToken } from './api'
-import { AnalysisView } from './components/AnalysisView'
 import { CalendarView } from './components/CalendarView'
 import { HiddenDialog, ImportDialog, PdfDialog, SettingsDialog } from './components/Dialogs'
-import { Button, Icon } from './components/Icon'
+import { Icon } from './components/Icon'
 import { LoginScreen } from './components/LoginScreen'
 import { PrintView } from './components/PrintView'
-import { SalesReportView } from './components/SalesReportView'
-import { parseSalesWorkbookAuto } from './salesReportExcelImport'
-import { parseVisitLogWorkbook } from './visitLogImport'
-import { parseProviderSalesWorkbook } from './providerSalesExcelImport'
-import { applyImportedProviderSales } from './providerSalesData'
-import { applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedHanbaiFigures, applyImportedVisitFigures, pickOfficeData, DEFAULT_FISCAL_YEAR, MONTH_LABELS } from './salesReportData'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 const fiscalFor = (month) => { const [year, number] = month.split('-').map(Number); return number >= 4 ? year : year - 1 }
@@ -50,8 +43,6 @@ export default function App() {
   const [savingKey, setSavingKey] = useState('')
   const [attendanceSaving, setAttendanceSaving] = useState(false)
   const [fiscalYear, setFiscalYear] = useState(fiscalFor(currentMonth()))
-  const [analytics, setAnalytics] = useState(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [toast, setToast] = useState(null)
   const [dialog, setDialog] = useState(null)
   const [importState, setImportState] = useState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' })
@@ -140,12 +131,6 @@ export default function App() {
     })
     return () => window.cancelAnimationFrame(frame)
   }, [pendingPdfDownload, activeTab, pdfLoading, pdfGenerating, printCalendar])
-
-  useEffect(() => {
-    if (!session || activeTab !== 'analysis') return
-    setAnalyticsLoading(true)
-    api.analytics({ fiscalYear, staffId: selectedStaffId, comparisonMonth: month }).then(setAnalytics).catch((error) => notify(error.message, 'error')).finally(() => setAnalyticsLoading(false))
-  }, [session, activeTab, fiscalYear, selectedStaffId, month, notify])
 
   async function handleLogin(form) {
     setLoginBusy(true); setLoginError('')
@@ -237,59 +222,6 @@ export default function App() {
     } catch (error) { notify(error.message, 'error'); return null }
   }
 
-  // 「Excelを取り込む」で選んだファイルが営業月報向け（売上状況報告書／担当別売上実績／訪問ログ）の場合は、
-  // 居宅カレンダーの取込フローに進む前にそちらへ直接反映する。該当しなければnullを返し、通常の取込にフォールバックする。
-  async function tryImportSalesReportFile(file) {
-    if (/\.(xlsx|xlsm)$/i.test(file.name)) {
-      let result
-      try { result = await parseSalesWorkbookAuto(file) }
-      catch (firstError) {
-        // アプリ更新直後の読み込み失敗は「対応していない形式」ではないため、フォールバックさせずそのまま伝える。
-        if (/アプリが更新されたため/.test(firstError.message)) throw firstError
-        // 売上状況報告書／担当別売上実績／商品分類別販売売上のいずれでもなければ、居宅別売上推移表として試す。
-        let trend
-        try { trend = await parseProviderSalesWorkbook(file) }
-        catch (secondError) {
-          if (/アプリが更新されたため/.test(secondError.message)) throw secondError
-          return null
-        }
-        const officeEntry = pickOfficeData(trend.offices, session.office.name)[session.office.name]
-        const summary = applyImportedProviderSales(session.office.name, officeEntry)
-        return `✓ 居宅別売上推移表を取り込みました（${trend.fiscalYear}年度・${summary.providerCount}件の居宅）。居宅カレンダーの各行と実績分析に今月売上として反映されます。`
-      }
-      if (result.type === 'status') {
-        const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
-        const targetMonth = result.monthKey ?? month.split('-')[1]
-        const summary = applyImportedSalesFigures(targetYear, targetMonth, pickOfficeData(result.data, session.office.name))
-        const total = summary.updated.length + summary.created.length
-        return `✓ 売上状況報告書を取り込みました。営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に${total}件の担当者分を反映しました。`
-      }
-      if (result.type === 'hanbaiBunrui') {
-        const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
-        const targetMonth = result.monthKey ?? month.split('-')[1]
-        const summary = applyImportedHanbaiFigures(targetYear, targetMonth, pickOfficeData(result.data, session.office.name))
-        const total = summary.updated.length + summary.created.length
-        return `✓ 商品分類別販売売上を取り込みました。営業月報（${targetYear}年度${MONTH_LABELS[targetMonth] || targetMonth + '月'}）に${total}件の担当者分を反映しました。`
-      }
-      const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
-      const summary = applyImportedSalesFiguresMultiMonth(targetYear, pickOfficeData(result.data, session.office.name))
-      const total = summary.updated.length + summary.created.length
-      return `✓ 担当別売上実績を取り込みました。営業月報（${targetYear}年度）に${total}件の担当者分・${summary.months.length}ヶ月分を反映しました。`
-    }
-    if (/\.(xls|csv)$/i.test(file.name)) {
-      let result
-      try { result = await parseVisitLogWorkbook(file) }
-      catch (error) {
-        if (/アプリが更新されたため/.test(error.message)) throw error
-        return null
-      }
-      const summary = applyImportedVisitFigures(pickOfficeData(result.offices, session.office.name))
-      const total = summary.updated.length + summary.created.length
-      return `✓ 訪問ログを取り込みました。営業月報の訪問実績に${result.matchedRows}/${result.totalRows}件・${total}名分を反映しました。`
-    }
-    return null
-  }
-
   function openImport() { setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' }); setDialog('import') }
   function selectImportFile(file) {
     if (!file) return
@@ -310,18 +242,6 @@ export default function App() {
     if (!importState.file) return
     setImportState((state) => ({ ...state, loading: true, preview: null, error: '' }))
     const file = importState.file
-    try {
-      const salesMessage = await tryImportSalesReportFile(file)
-      if (salesMessage) {
-        setDialog(null)
-        setImportState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' })
-        notify(salesMessage)
-        return
-      }
-    } catch (error) {
-      setImportState((state) => ({ ...state, loading: false, preview: null, error: error.message }))
-      return
-    }
     try {
       const preview = await api.importPreview(file, importState.archiveMissing)
       setImportState((state) => ({ ...state, loading: false, preview, error: '' }))
@@ -419,11 +339,7 @@ export default function App() {
 
   let pageContent
   if (activeTab === 'calendar') {
-    pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onChangeKind={changeProviderKind} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} onOpenAnalysis={() => setActiveTab('analysis')} canImport={session.permissions.canImport}/>
-  } else if (activeTab === 'analysis') {
-    pageContent = <AnalysisView fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} analytics={analytics} loading={analyticsLoading} scopeLabel={selectedStaffName || '営業所全体'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} canSelectStaff={session.user.role !== 'staff'} officeName={session.office.name} onBack={() => setActiveTab('calendar')} onPdf={openPdfDialog}/>
-  } else if (activeTab === 'salesReport') {
-    pageContent = <SalesReportView officeName={session.office.name} fiscalYear={fiscalYear}/>
+    pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onChangeKind={changeProviderKind} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} canImport={session.permissions.canImport}/>
   } else {
     pageContent = <PrintView month={month} officeName={session.office.name} staff={staff} calendar={printCalendar} staffCalendars={printStaffCalendars} selectedStaffId={printStaffId} setSelectedStaffId={(staffId) => { setPrintCalendar(null); setPrintStaffCalendars([]); setPrintStaffId(staffId) }} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={pdfLoading} generating={pdfGenerating} onChangeMonth={changeMonth} onOpenPrint={openPrintPdf} onDownload={savePdfFile}/>
   }
@@ -431,7 +347,7 @@ export default function App() {
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
       <div className="sidebar-brand"><span className="brand-symbol">営</span><span>営業管理</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
-      <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => { setActiveTab('analysis'); setSidebarOpen(false) }}><Icon name="chart"/>実績分析</button><button className={activeTab === 'salesReport' ? 'active' : ''} onClick={() => { setActiveTab('salesReport'); setSidebarOpen(false) }}><Icon name="report"/>営業月報</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
+      <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
       <div className="sidebar-bottom">{session.user.role === 'system_admin' && <button onClick={openSettings}><Icon name="settings"/>システム設定</button>}<div className="retention-note"><Icon name="info" size={16}/>訪問記録は5年以上保持</div><button onClick={logout}><Icon name="logout"/>ログアウト</button></div>
     </aside>
     {sidebarOpen && <button className="sidebar-scrim" aria-label="メニューを閉じる" onClick={() => setSidebarOpen(false)}/>} 
