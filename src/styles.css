@@ -291,6 +291,17 @@ tr:hover .row-actions, .row-actions:focus-within { opacity: 1; }
 .kind-up { color: #087f73; }
 .kind-down { color: #b4551c; }
 .kind-flat { color: #617387; }
+.kind-attention { color: #b0435a; }
+
+/* ---------- 居宅別 訪問件数×売上 推移比較 ---------- */
+.provider-sales-empty { margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: #f5f8fb;
+  color: #55697d; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.provider-sales-nodata { color: #97a6b5; font-size: 12.5px; text-align: center; }
+.provider-sales-flag { display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 900;
+  color: #a3355a; background: #fdeef2; }
+.provider-sales-flag.ok { color: #97a6b5; background: transparent; padding: 0; }
+tr.is-divergent { background: #fff7f8; }
+tr.is-divergent th { color: #a3355a; }
 .kind-tag { display: inline-flex; min-width: 38px; padding: 3px 8px; border-radius: 999px; justify-content: center; font-size: 13px; font-weight: 900; }
 .kind-tag-houkatsu { color: #1a5aa7; background: #e6f0fb; }
 .kind-tag-kyotaku { color: #6b4ea8; background: #efeafb; }

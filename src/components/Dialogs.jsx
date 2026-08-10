@@ -20,7 +20,7 @@ export function ImportDialog({ state, onFileSelect, onPreview, onConfirm, onClos
         <strong>{state.file ? state.file.name : 'Excelファイルを選択'}</strong>
         <span>{state.file ? `${(state.file.size / 1024).toLocaleString('ja-JP', { maximumFractionDigits: 0 })} KB` : '.xls／.xlsx／.xlsm／.csv・25MB以下'}</span>
       </label>}
-      <div className="info-box"><Icon name="info"/><span>居宅訪問履歴のほか、売上状況報告書・営業所／担当別売上実績・商品分類別販売売上・訪問ログを選ぶと、自動判定して営業月報に反映します。</span></div>
+      <div className="info-box"><Icon name="info"/><span>居宅訪問履歴のほか、売上状況報告書・営業所／担当別売上実績・商品分類別販売売上・訪問ログを選ぶと、自動判定して営業月報に反映します。「居宅別売上推移表」を選ぶと、実績分析タブの訪問件数×売上の比較に反映されます。</span></div>
       {state.loading && <div className="dialog-loading compact"><span className="spinner"/><strong>Excelの内容を検証しています…</strong></div>}
       {state.error && <div className="form-error" role="alert">{state.error}</div>}
       {state.preview && <><div className="file-row"><Icon name="upload"/><div><strong>{state.preview.file?.name || '公式Excel'}</strong><span>{state.preview.officeNames?.join('、')}・{state.preview.months?.join('、')}</span></div><i>検証済み</i></div><div className="diff-grid">

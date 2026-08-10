@@ -1,8 +1,48 @@
 import React, { useMemo } from 'react'
 import { Button, Icon } from './Icon'
+import { getOfficeProviderSales, findProviderSales } from '../providerSalesData'
 
 const decimal = (value) => value == null ? '—' : Number(value).toFixed(1)
 const percent = (value) => value == null ? '—' : `${decimal(value)}%`
+const yen = (value) => `${Math.round(Number(value) || 0).toLocaleString('ja-JP')}円`
+
+// 比較月の1か月前（年またぎ対応）の 'YYYY-MM' キーを返す。
+function previousMonthKey(monthKey) {
+  if (!monthKey) return null
+  const [year, month] = monthKey.split('-').map(Number)
+  const date = new Date(year, month - 2, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+// 居宅ごとに「訪問件数の増減」と「売上の増減」を突き合わせる。
+// 訪問と売上が逆方向に動いている居宅（訪問が減っているのに売上は増えている等）を
+// divergent（要確認）としてマークし、営業視点で深堀りすべき先を絞り込めるようにする。
+function buildProviderSalesRows(analytics, officeName) {
+  const comparisonMonth = analytics?.comparisonMonth
+  if (!comparisonMonth) return { rows: [], comparisonMonth: null, prevMonth: null }
+  const prevMonth = previousMonthKey(comparisonMonth)
+  const officeSales = getOfficeProviderSales(officeName)
+  const rows = (analytics.providerComparison || []).map((provider) => {
+    const visitCur = provider.monthlyVisits.get(comparisonMonth) || 0
+    const visitPrev = provider.monthlyVisits.get(prevMonth) || 0
+    const visitDiff = visitCur - visitPrev
+    const sales = findProviderSales(officeSales, provider.name)
+    if (!sales) return { provider, hasSales: false, visitCur, visitPrev, visitDiff }
+    const salesCur = sales.monthlySales[comparisonMonth] || 0
+    const salesPrev = sales.monthlySales[prevMonth] || 0
+    const salesDiff = salesCur - salesPrev
+    const salesDiffRate = salesPrev ? Math.round((salesDiff / salesPrev) * 1000) / 10 : null
+    const perVisit = visitCur ? Math.round(salesCur / visitCur) : null
+    const divergent = (visitDiff > 0 && salesDiff < 0) || (visitDiff < 0 && salesDiff > 0)
+    return { provider, hasSales: true, visitCur, visitPrev, visitDiff, salesCur, salesPrev, salesDiff, salesDiffRate, perVisit, divergent }
+  })
+  rows.sort((a, b) => {
+    if (a.divergent !== b.divergent) return a.divergent ? -1 : 1
+    if (a.hasSales !== b.hasSales) return a.hasSales ? -1 : 1
+    return Math.abs(b.salesDiff || 0) - Math.abs(a.salesDiff || 0)
+  })
+  return { rows, comparisonMonth, prevMonth }
+}
 
 function BarChart({ months }) {
   const max = Math.max(1, ...months.map((item) => item.visitTotal))
@@ -62,13 +102,15 @@ function salesInsights(analytics) {
   return [momentum, concentrationInsight, providerInsight, efficiencyInsight]
 }
 
-export function AnalysisView({ fiscalYear, setFiscalYear, analytics, loading, scopeLabel, staff, selectedStaffId, setSelectedStaffId, canSelectStaff, onBack, onPdf }) {
+export function AnalysisView({ fiscalYear, setFiscalYear, analytics, loading, scopeLabel, staff, selectedStaffId, setSelectedStaffId, canSelectStaff, officeName, onBack, onPdf }) {
   const summary = analytics?.summary || {}
   const insights = useMemo(() => salesInsights(analytics), [analytics])
   const frequencyMax = Math.max(1, ...(analytics?.frequencyBands || []).map((item) => item.count))
   const printableStaff = staff.filter((person) => person.active && person.role === 'staff')
   const [comparisonYear, comparisonMonth] = (analytics?.comparisonMonth || '').split('-')
   const comparisonLabel = comparisonYear ? `${comparisonYear}年${Number(comparisonMonth)}月` : '今月'
+  const providerSales = useMemo(() => buildProviderSalesRows(analytics, officeName), [analytics, officeName])
+  const prevMonthLabel = providerSales.prevMonth ? `${Number(providerSales.prevMonth.split('-')[1])}月` : '前月'
   return <>
     <div className="page-header"><div><h1>実績分析</h1><p>訪問量・継続性・訪問配分を営業視点で確認</p></div><div className="page-header-actions"><Button icon="calendar" onClick={onBack}>カレンダーへ</Button><Button icon="pdf" onClick={onPdf}>対象月をPDF</Button></div></div>
     <section className="analysis-scope"><div className="analysis-year-switch"><button className="icon-button" aria-label="前年度" onClick={() => setFiscalYear(fiscalYear - 1)}><Icon name="left"/></button><strong>{fiscalYear}年度</strong><button className="icon-button" aria-label="次年度" onClick={() => setFiscalYear(fiscalYear + 1)}><Icon name="right"/></button><span>4月〜翌年3月</span></div><div className="analysis-scope-meta"><label><span>分析対象</span><span className="select-wrap"><select aria-label="分析対象の営業員" value={selectedStaffId} onChange={(event) => setSelectedStaffId(event.target.value)} disabled={!canSelectStaff || loading}>{canSelectStaff && <option value="">営業所全体</option>}{printableStaff.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select><Icon name="down" size={15}/></span></label>{loading && <span className="status-line"><span className="spinner small"/>集計中…</span>}</div></section>
@@ -145,7 +187,9 @@ export function AnalysisView({ fiscalYear, setFiscalYear, analytics, loading, sc
       </section>
     )}
 
-    {analytics?.providerRanking?.length > 0 && <section className="staff-panel"><div className="panel-heading"><div><h2>訪問先別ランキング</h2><span>今年度の訪問数が多い先を確認</span></div><span className="chart-unit">上位10件</span></div><div className="responsive-table"><table className="staff-table ranking-table"><thead><tr><th>順位</th><th>訪問先</th><th>営業員</th><th>今年度訪問数</th><th>今年度月平均</th></tr></thead><tbody>{analytics.providerRanking.map((provider, index) => <tr key={provider.id}><td>{index + 1}</td><th>{provider.name}</th><td>{provider.staffName}</td><td>{provider.visitTotal}回</td><td>{decimal(provider.fiscalMonthlyAverage)}回</td></tr>)}</tbody></table></div></section>}
+    <ProviderSalesTrendPanel providerSales={providerSales} comparisonLabel={comparisonLabel} prevMonthLabel={prevMonthLabel} scopeLabel={scopeLabel}/>
+
+    {analytics?.providerRanking?.length > 0 &&<section className="staff-panel"><div className="panel-heading"><div><h2>訪問先別ランキング</h2><span>今年度の訪問数が多い先を確認</span></div><span className="chart-unit">上位10件</span></div><div className="responsive-table"><table className="staff-table ranking-table"><thead><tr><th>順位</th><th>訪問先</th><th>営業員</th><th>今年度訪問数</th><th>今年度月平均</th></tr></thead><tbody>{analytics.providerRanking.map((provider, index) => <tr key={provider.id}><td>{index + 1}</td><th>{provider.name}</th><td>{provider.staffName}</td><td>{provider.visitTotal}回</td><td>{decimal(provider.fiscalMonthlyAverage)}回</td></tr>)}</tbody></table></div></section>}
 
     {analytics?.staffBreakdown?.length > 0 && <section className="staff-panel"><div className="panel-heading"><div><h2>営業員別 活動比較</h2><span>訪問先数・訪問数・出勤日基準で比較</span></div></div><div className="responsive-table"><table className="staff-table"><thead><tr><th>営業員</th><th>訪問件数</th><th>訪問先数</th><th>構成比</th><th>月平均</th><th>出勤日数</th><th>1日平均</th></tr></thead><tbody>{analytics.staffBreakdown.map((person) => <tr key={person.id}><th>{person.name}</th><td>{person.visitTotal}回</td><td>{person.providerCount}件</td><td>{percent(person.share)}</td><td>{decimal(person.monthlyAverage)}回</td><td>{person.attendanceDays || '—'}</td><td>{person.visitsPerAttendanceDay == null ? '—' : `${decimal(person.visitsPerAttendanceDay)}回`}</td></tr>)}</tbody></table></div></section>}
     <div className="analysis-definition"><Icon name="info" size={16}/><span>営業視点サマリーは訪問記録から活動量・継続性・配分を整理したものです。訪問件数は売上・成約・関係性の質を直接示すものではないため、担当エリア、移動条件、案件状況と合わせて判断してください。すべての平均値は小数第1位まで表示します。</span></div>
@@ -159,4 +203,68 @@ function Kpi({ label, value, unit, accent }) {
 function Difference({ value }) {
   const tone = value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral'
   return <span className={`comparison-difference ${tone}`}>{value > 0 ? '+' : ''}{decimal(value)}回</span>
+}
+
+function YenDiff({ value }) {
+  const tone = value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral'
+  return <span className={`comparison-difference ${tone}`}>{value > 0 ? '+' : ''}{yen(value)}</span>
+}
+
+// 「居宅別売上推移表」（Excel取込）を、居宅カレンダーの実訪問データと居宅名で突き合わせて、
+// 訪問件数の増減と売上の増減が逆方向に動いている居宅（要確認先）を優先的に見せるパネル。
+function ProviderSalesTrendPanel({ providerSales, comparisonLabel, prevMonthLabel, scopeLabel }) {
+  const { rows } = providerSales
+  if (!rows.length) return null
+  const withSales = rows.filter((row) => row.hasSales)
+  const divergentCount = withSales.filter((row) => row.divergent).length
+  const totalSalesDiff = withSales.reduce((sum, row) => sum + (row.salesDiff || 0), 0)
+
+  return (
+    <section className="staff-panel provider-sales-panel">
+      <div className="panel-heading">
+        <div><h2>居宅別 訪問件数×売上 推移比較</h2><span>「居宅別売上推移表」を取り込むと、訪問件数と売上の動きが逆になっている居宅を確認できます</span></div>
+        <span className="chart-unit">対象：{scopeLabel}</span>
+      </div>
+      {withSales.length === 0 ? (
+        <div className="provider-sales-empty">
+          <Icon name="info" size={16}/>
+          <span>売上データが取り込まれていません。居宅カレンダーの「Excelを取り込む」から「居宅別売上推移表」を選択すると、ここに反映されます。</span>
+        </div>
+      ) : (
+        <>
+          <div className="comparison-legend">
+            <span className="kind-attention">要確認（訪問と売上が逆方向） {divergentCount}件</span>
+            <span>売上データあり {withSales.length}件</span>
+            <span className={totalSalesDiff >= 0 ? 'kind-up' : 'kind-down'}>{comparisonLabel}の売上合計差 {totalSalesDiff >= 0 ? '+' : ''}{yen(totalSalesDiff)}</span>
+          </div>
+          <div className="responsive-table"><table className="staff-table comparison-table"><thead><tr>
+            <th>居宅</th><th>種別</th>
+            <th>{prevMonthLabel}訪問</th><th>{comparisonLabel}訪問</th>
+            <th>{prevMonthLabel}売上</th><th>{comparisonLabel}売上</th><th>売上差</th>
+            <th>訪問1件あたり売上</th><th>状態</th>
+          </tr></thead><tbody>
+            {rows.map(({ provider, hasSales, visitCur, visitPrev, visitDiff, salesCur, salesPrev, salesDiff, perVisit, divergent }) => (
+              <tr key={provider.id} className={divergent ? 'is-divergent' : ''}>
+                <th>{provider.name}</th>
+                <td><span className={`kind-tag kind-tag-${provider.kind}`}>{provider.kind === 'houkatsu' ? '包括' : '居宅'}</span></td>
+                <td>{visitPrev}回</td>
+                <td><strong>{visitCur}回</strong><Difference value={visitDiff}/></td>
+                {hasSales ? (
+                  <>
+                    <td>{yen(salesPrev)}</td>
+                    <td><strong>{yen(salesCur)}</strong></td>
+                    <td><YenDiff value={salesDiff}/></td>
+                    <td>{perVisit == null ? '—' : yen(perVisit)}</td>
+                    <td>{divergent ? <span className="provider-sales-flag">要確認</span> : <span className="provider-sales-flag ok">—</span>}</td>
+                  </>
+                ) : (
+                  <><td colSpan={4} className="provider-sales-nodata">売上データなし</td><td>—</td></>
+                )}
+              </tr>
+            ))}
+          </tbody></table></div>
+        </>
+      )}
+    </section>
+  )
 }

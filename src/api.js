@@ -27,7 +27,7 @@ const HOUKATSU_KEYWORDS = [
 ]
 
 // 表記ゆれ（全角/半角・空白・記号）を吸収してから判定する
-function normalizeProviderName(name) {
+export function normalizeProviderName(name) {
   return String(name || '').normalize('NFKC').replace(/[\s　・･]/g, '')
 }
 

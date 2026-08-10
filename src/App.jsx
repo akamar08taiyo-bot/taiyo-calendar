@@ -10,6 +10,8 @@ import { PrintView } from './components/PrintView'
 import { SalesReportView } from './components/SalesReportView'
 import { parseSalesWorkbookAuto } from './salesReportExcelImport'
 import { parseVisitLogWorkbook } from './visitLogImport'
+import { parseProviderSalesWorkbook } from './providerSalesExcelImport'
+import { applyImportedProviderSales } from './providerSalesData'
 import { applyImportedSalesFigures, applyImportedSalesFiguresMultiMonth, applyImportedHanbaiFigures, applyImportedVisitFigures, pickOfficeData, DEFAULT_FISCAL_YEAR, MONTH_LABELS } from './salesReportData'
 
 const currentMonth = () => new Date().toISOString().slice(0, 7)
@@ -268,7 +270,15 @@ export default function App() {
     if (/\.(xlsx|xlsm)$/i.test(file.name)) {
       let result
       try { result = await parseSalesWorkbookAuto(file) }
-      catch { return null }
+      catch {
+        // 売上状況報告書／担当別売上実績／商品分類別販売売上のいずれでもなければ、居宅別売上推移表として試す。
+        let trend
+        try { trend = await parseProviderSalesWorkbook(file) }
+        catch { return null }
+        const officeEntry = pickOfficeData(trend.offices, session.office.name)[session.office.name]
+        const summary = applyImportedProviderSales(session.office.name, officeEntry)
+        return `居宅別売上推移表を実績分析（${trend.fiscalYear}年度）に反映しました（${summary.providerCount}件の居宅）。`
+      }
       if (result.type === 'status') {
         const targetYear = result.fiscalYear ?? fiscalYear ?? DEFAULT_FISCAL_YEAR
         const targetMonth = result.monthKey ?? month.split('-')[1]
@@ -431,7 +441,7 @@ export default function App() {
   if (activeTab === 'calendar') {
     pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onChangeKind={changeProviderKind} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} onOpenAnalysis={() => setActiveTab('analysis')} canImport={session.permissions.canImport}/>
   } else if (activeTab === 'analysis') {
-    pageContent = <AnalysisView fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} analytics={analytics} loading={analyticsLoading} scopeLabel={selectedStaffName || '営業所全体'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} canSelectStaff={session.user.role !== 'staff'} onBack={() => setActiveTab('calendar')} onPdf={openPdfDialog}/>
+    pageContent = <AnalysisView fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} analytics={analytics} loading={analyticsLoading} scopeLabel={selectedStaffName || '営業所全体'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} canSelectStaff={session.user.role !== 'staff'} officeName={session.office.name} onBack={() => setActiveTab('calendar')} onPdf={openPdfDialog}/>
   } else if (activeTab === 'salesReport') {
     pageContent = <SalesReportView officeName={session.office.name} fiscalYear={fiscalYear}/>
   } else {
