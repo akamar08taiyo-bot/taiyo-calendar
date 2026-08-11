@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, setCsrfToken } from './api'
+import { AnalysisView } from './components/AnalysisView'
 import { CalendarView } from './components/CalendarView'
 import { HiddenDialog, ImportDialog, PdfDialog, SettingsDialog } from './components/Dialogs'
 import { Icon } from './components/Icon'
@@ -43,6 +44,8 @@ export default function App() {
   const [savingKey, setSavingKey] = useState('')
   const [attendanceSaving, setAttendanceSaving] = useState(false)
   const [fiscalYear, setFiscalYear] = useState(fiscalFor(currentMonth()))
+  const [analytics, setAnalytics] = useState(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [toast, setToast] = useState(null)
   const [dialog, setDialog] = useState(null)
   const [importState, setImportState] = useState({ loading: false, file: null, preview: null, archiveMissing: false, error: '' })
@@ -131,6 +134,12 @@ export default function App() {
     })
     return () => window.cancelAnimationFrame(frame)
   }, [pendingPdfDownload, activeTab, pdfLoading, pdfGenerating, printCalendar])
+
+  useEffect(() => {
+    if (!session || activeTab !== 'analysis') return
+    setAnalyticsLoading(true)
+    api.analytics({ fiscalYear, staffId: selectedStaffId, comparisonMonth: month }).then(setAnalytics).catch((error) => notify(error.message, 'error')).finally(() => setAnalyticsLoading(false))
+  }, [session, activeTab, fiscalYear, selectedStaffId, month, notify])
 
   async function handleLogin(form) {
     setLoginBusy(true); setLoginError('')
@@ -260,12 +269,15 @@ export default function App() {
       if (result.officeId && result.officeId !== session.office.id) {
         const nextSession = await api.login({ officeId: result.officeId })
         setSession(nextSession)
-        setCalendar(null)
       } else {
         const rows = await api.staff()
         setStaff(rows.staff)
-        await loadCalendar()
       }
+      // setMonth/setSelectedStaffId はここではまだ反映されていないため、loadCalendar（古いクロージャ）を
+      // そのまま呼ぶと更新前の月・営業員条件で取得してしまう。取り込んだ月・営業所集計の条件を明示して直接取得する。
+      setCalendarLoading(true)
+      try { setCalendar(await api.calendar({ month: result.importedMonth, staffId: '' })) }
+      finally { setCalendarLoading(false) }
       notify(`${result.officeName}・${result.importedMonth}を更新しました。訪問 ${result.insertedVisits}回を反映しました。`)
     }
     catch (error) { setImportState((state) => ({ ...state, loading: false, error: error.message })) }
@@ -339,7 +351,9 @@ export default function App() {
 
   let pageContent
   if (activeTab === 'calendar') {
-    pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onChangeKind={changeProviderKind} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} canImport={session.permissions.canImport}/>
+    pageContent = <CalendarView month={month} calendar={calendar} officeName={session.office.name} scopeLabel={selectedStaffName || '営業所集計'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={calendarLoading} savingKey={savingKey} attendanceSaving={attendanceSaving} onChangeMonth={changeMonth} onUpdateVisit={updateVisit} onUpdateAttendance={updateAttendance} onHide={hideProvider} onChangeKind={changeProviderKind} onOpenHidden={openHidden} onOpenImport={openImport} onOpenPdf={openPdfDialog} onOpenPrint={printFromCalendar} onOpenAnalysis={() => setActiveTab('analysis')} canImport={session.permissions.canImport}/>
+  } else if (activeTab === 'analysis') {
+    pageContent = <AnalysisView fiscalYear={fiscalYear} setFiscalYear={setFiscalYear} analytics={analytics} loading={analyticsLoading} scopeLabel={selectedStaffName || '営業所全体'} staff={staff} selectedStaffId={selectedStaffId} setSelectedStaffId={setSelectedStaffId} canSelectStaff={session.user.role !== 'staff'} officeName={session.office.name} onBack={() => setActiveTab('calendar')} onPdf={openPdfDialog}/>
   } else {
     pageContent = <PrintView month={month} officeName={session.office.name} staff={staff} calendar={printCalendar} staffCalendars={printStaffCalendars} selectedStaffId={printStaffId} setSelectedStaffId={(staffId) => { setPrintCalendar(null); setPrintStaffCalendars([]); setPrintStaffId(staffId) }} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={pdfLoading} generating={pdfGenerating} onChangeMonth={changeMonth} onOpenPrint={openPrintPdf} onDownload={savePdfFile}/>
   }
@@ -347,7 +361,7 @@ export default function App() {
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
       <div className="sidebar-brand"><span className="brand-symbol">営</span><span>営業管理</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
-      <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
+      <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => { setActiveTab('analysis'); setSidebarOpen(false) }}><Icon name="chart"/>実績分析</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
       <div className="sidebar-bottom">{session.user.role === 'system_admin' && <button onClick={openSettings}><Icon name="settings"/>システム設定</button>}<div className="retention-note"><Icon name="info" size={16}/>訪問記録は5年以上保持</div><button onClick={logout}><Icon name="logout"/>ログアウト</button></div>
     </aside>
     {sidebarOpen && <button className="sidebar-scrim" aria-label="メニューを閉じる" onClick={() => setSidebarOpen(false)}/>} 
