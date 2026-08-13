@@ -319,9 +319,15 @@ export default function App() {
   }
 
   function openPrintTab() {
-    setPrintCalendar(null)
-    setPrintStaffCalendars([])
-    setPrintStaffId(session.user.role === 'staff' ? session.user.id : selectedStaffId)
+    // 印刷タブを開いたままもう一度「印刷」を押した場合、印刷範囲が変わらないなら読み込み済みの帳票をそのまま使う。
+    // ここで無条件に空へ戻すと、読み込みを行うeffectの依存（タブ・対象営業員・月）がどれも変わらないため
+    // 再取得が走らず、帳票が空のままになってしまう。
+    const nextStaffId = session.user.role === 'staff' ? session.user.id : selectedStaffId
+    if (nextStaffId !== printStaffId) {
+      setPrintCalendar(null)
+      setPrintStaffCalendars([])
+      setPrintStaffId(nextStaffId)
+    }
     setActiveTab('print')
     setSidebarOpen(false)
   }
