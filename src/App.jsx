@@ -6,8 +6,10 @@ import { HiddenDialog, ImportDialog, PdfDialog, SettingsDialog } from './compone
 import { Icon } from './components/Icon'
 import { LoginScreen } from './components/LoginScreen'
 import { PrintView } from './components/PrintView'
+import { currentBusinessMonth } from './lib/businessDate.js'
 
-const currentMonth = () => new Date().toISOString().slice(0, 7)
+// 業務月は日本時間で判定する（UTC基準だと月初のJST深夜0〜9時に前月が初期表示される）
+const currentMonth = () => currentBusinessMonth()
 const fiscalFor = (month) => { const [year, number] = month.split('-').map(Number); return number >= 4 ? year : year - 1 }
 const roleLabel = { staff: '営業員', office_admin: '営業所利用', system_admin: '営業所利用' }
 
