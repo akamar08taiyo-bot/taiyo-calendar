@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, setCsrfToken } from './api'
+import { api, setCsrfToken, onSaveIssue } from './api'
 import { AnalysisView } from './components/AnalysisView'
 import { CalendarView } from './components/CalendarView'
 import { HiddenDialog, ImportDialog, PdfDialog, SettingsDialog } from './components/Dialogs'
@@ -63,10 +63,14 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState([])
   const [settingsLoading, setSettingsLoading] = useState(false)
 
-  const notify = useCallback((message, type = 'success') => {
+  const notify = useCallback((message, type = 'success', duration = 4200) => {
     setToast({ message, type })
-    window.setTimeout(() => setToast(null), 4200)
+    window.setTimeout(() => setToast(null), duration)
   }, [])
+
+  // 保存・読み込みの失敗（COMMON-06）。データ層(api.js)からの通知をトーストへ
+  // 橋渡しする。保存失敗は見逃されないよう長めに表示する。
+  useEffect(() => onSaveIssue((message) => notify(message, 'error', 12000)), [notify])
 
   useEffect(() => {
     setBooting(true)
@@ -381,6 +385,6 @@ export default function App() {
     {dialog === 'pdf' && <PdfDialog month={month} staffName={printStaffName} loading={pdfLoading || pdfGenerating} onDownload={() => downloadPdfFor(printStaffId, true)} onClose={() => setDialog(null)}/>} 
     {dialog === 'hidden' && <HiddenDialog providers={hiddenProviders} loading={hiddenLoading} canDelete={session.permissions.canDeletePermanently} onRestore={restoreProvider} onDelete={deleteProvider} onClose={() => setDialog(null)}/>} 
     {dialog === 'settings' && <SettingsDialog settings={settings} auditLogs={auditLogs} loading={settingsLoading} onSave={saveSettings} onClose={() => setDialog(null)}/>} 
-    {toast && <div className={`toast ${toast.type}`} role="status"><Icon name={toast.type === 'error' ? 'info' : 'check'}/>{toast.message}</div>}
+    {toast && <div className={`toast ${toast.type}`} role={toast.type === 'error' ? 'alert' : 'status'}><Icon name={toast.type === 'error' ? 'info' : 'check'}/>{toast.message}</div>}
   </div>
 }

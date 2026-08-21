@@ -1,7 +1,11 @@
+import { currentBusinessMonth, formatDateInTokyo, isValidDateString } from './lib/businessDate.js'
+
 const STORE_KEY = 'kyotaku-calendar-offline-v2'
 const SESSION_KEY = 'kyotaku-calendar-offline-session-v2'
+// now() は「いつ更新したか」の記録用タイムスタンプなので UTC の ISO 文字列のままでよい。
 const now = () => new Date().toISOString()
-const monthNow = () => now().slice(0, 7)
+// 業務月は日本時間で判定する（UTC基準だと月初のJST深夜0〜9時に前月になる）
+const monthNow = () => currentBusinessMonth()
 
 /* ============================================================
    訪問先の種別判定（地域包括支援センター / 居宅介護支援事業所）
@@ -80,13 +84,19 @@ function cellText(cell) {
   return String(cell.text || value).trim()
 }
 
+// Excelのセル値を業務日 'YYYY-MM-DD' に変換する。
+// 実在しない日付（2026-02-31、非うるう年の2月29日など）は null を返して取り込まない。
 function excelDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatDateInTokyo(value)
+  }
   if (typeof value === 'number' && value > 30000 && value < 80000) {
-    return new Date(Date.UTC(1899, 11, 30) + value * 86400000).toISOString().slice(0, 10)
+    return formatDateInTokyo(new Date(Date.UTC(1899, 11, 30) + value * 86400000))
   }
   const match = String(value || '').match(/(20\d{2})[年/-](\d{1,2})[月/-](\d{1,2})/)
-  return match ? `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}` : null
+  if (!match) return null
+  const candidate = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
+  return isValidDateString(candidate) ? candidate : null
 }
 
 function visitCount(value) {
@@ -280,6 +290,47 @@ function parseTabDelimitedVisitHistory(text, delimiter = '\t') {
   return [...grouped.values()]
 }
 
+// SheetJS(xlsx)のワークシートを、parseCalendarSheet/parseVisitHistorySheetが
+// 期待するExcelJS互換の最小インターフェース（getCell/getRow/rowCount/columnCount）に変換する。
+// 本物のバイナリ .xls（BIFF形式）はExcelJSが読めないため、この経路でのみ使用する。
+function xlsxSheetAdapter(XLSX, worksheet, sheetName) {
+  const ref = worksheet['!ref']
+  const range = ref ? XLSX.utils.decode_range(ref) : { s: { r: 0, c: 0 }, e: { r: -1, c: -1 } }
+  function cellAt(rowNumber, columnNumber) {
+    const addr = XLSX.utils.encode_cell({ r: rowNumber - 1, c: columnNumber - 1 })
+    const cell = worksheet[addr]
+    if (!cell) return { value: '' }
+    return { value: cell.v ?? '', text: cell.w != null ? String(cell.w) : String(cell.v ?? '') }
+  }
+  return {
+    name: sheetName,
+    rowCount: range.e.r + 1,
+    columnCount: range.e.c + 1,
+    getCell: (addr) => {
+      const { r, c } = XLSX.utils.decode_cell(addr)
+      return cellAt(r + 1, c + 1)
+    },
+    getRow: (rowNumber) => ({ getCell: (columnNumber) => cellAt(rowNumber, columnNumber) }),
+  }
+}
+
+async function parseWithSheetJs(buffer, invalidMessage) {
+  const XLSX = await import('xlsx')
+  let workbook
+  try { workbook = XLSX.read(buffer, { type: 'array', cellDates: true }) }
+  catch { throw new Error(invalidMessage) }
+  if (workbook.SheetNames.length > 30) throw new Error('シート数は30以下にしてください。')
+
+  const parsed = []
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = xlsxSheetAdapter(XLSX, workbook.Sheets[sheetName], sheetName)
+    if (sheet.rowCount > MAX_VISIT_HISTORY_ROWS || sheet.columnCount > MAX_VISIT_HISTORY_COLUMNS) throw new Error(`${sheetName}シートの行数または列数が上限を超えています。`)
+    const calendarRows = parseCalendarSheet(sheet)
+    parsed.push(...(calendarRows.length ? calendarRows : parseVisitHistorySheet(sheet)))
+  }
+  return parsed
+}
+
 export async function parseCalendarWorkbook(file) {
   if (!file || !/\.(xls|xlsx|xlsm|csv)$/i.test(file.name)) throw new Error('取り込めるのは .xls、.xlsx、.xlsm、.csv 形式です。')
   if (file.size > 25 * 1024 * 1024) throw new Error('Excelファイルは25MB以下にしてください。')
@@ -292,16 +343,26 @@ export async function parseCalendarWorkbook(file) {
     return parsed
   }
   if (/\.xls$/i.test(file.name)) {
+    // タブ区切りテキストとして保存されたなんちゃって.xls（Web版Excel等の書き出し）を先に試し、
+    // 該当しなければ本物のバイナリ.xls（旧式Excel 97-2003形式）としてSheetJSで読み込む。
     const text = decodeDelimitedText(buffer, '\t')
-    if (!text) throw new Error('この .xls は旧式Excel形式です。Excelの「名前を付けて保存」で .xlsx に変換してください。')
-    const parsed = parseTabDelimitedVisitHistory(text, '\t')
-    if (!parsed.length) throw new Error('居宅データを読み取れませんでした。「事業者名・担当名・日報日付」の列を確認してください。')
+    if (text) {
+      const parsed = parseTabDelimitedVisitHistory(text, '\t')
+      if (!parsed.length) throw new Error('居宅データを読み取れませんでした。「事業者名・担当名・日報日付」の列を確認してください。')
+      return parsed
+    }
+    const parsed = await parseWithSheetJs(buffer, 'Excelファイルを読み取れませんでした。パスワード保護を解除して保存し直してください。')
+    if (!parsed.length) throw new Error('居宅データを読み取れませんでした。「居宅カレンダー」または「事業者名・担当名・日報日付」の列がある訪問履歴Excelを選択してください。')
     return parsed
   }
   const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   try { await workbook.xlsx.load(buffer) }
-  catch { throw new Error('Excelファイルを読み取れませんでした。パスワード保護を解除し、.xlsx形式で保存し直してください。') }
+  catch {
+    const parsed = await parseWithSheetJs(buffer, 'Excelファイルを読み取れませんでした。パスワード保護を解除し、.xlsx形式で保存し直してください。')
+    if (!parsed.length) throw new Error('居宅データを読み取れませんでした。「居宅カレンダー」または「事業者名・担当名・日報日付」の列がある訪問履歴Excelを選択してください。')
+    return parsed
+  }
   if (workbook.worksheets.length > 30) throw new Error('シート数は30以下にしてください。')
 
   const parsed = []
@@ -402,16 +463,50 @@ function mergeImportedRows(data, rows) {
   return { data, visitTotal, importedScopes: [...importedScopes] }
 }
 
+// 保存・読み込みの失敗をReact側（App.jsx）へ伝えるための簡易購読機構。
+// api.jsはReactに依存しないデータ層のため、通知だけを提供し、実際のトースト
+// 表示は購読側（App.jsx）が行う。
+const saveIssueListeners = new Set()
+export function onSaveIssue(listener) {
+  saveIssueListeners.add(listener)
+  return () => saveIssueListeners.delete(listener)
+}
+function reportSaveIssue(message) {
+  for (const listener of saveIssueListeners) {
+    try { listener(message) } catch { /* 通知先のエラーはデータ層に波及させない */ }
+  }
+}
+
 function load() {
+  let raw
   try {
-    const data = JSON.parse(localStorage.getItem(STORE_KEY)) || seed()
+    raw = localStorage.getItem(STORE_KEY)
+    const data = JSON.parse(raw) || seed()
     data.attendanceDays ||= {}
     data.imports ||= {}
     for (const provider of data.providers || []) provider.staffByMonth ||= {}
     return data
-  } catch { return seed() }
+  } catch {
+    // 破損データを黙って消さず、別キーへ退避してから初期状態を返す
+    try {
+      if (raw) localStorage.setItem(`${STORE_KEY}_corrupted_${Date.now()}`, raw)
+    } catch { /* 退避に失敗しても読み込み自体は継続する */ }
+    reportSaveIssue('保存データの読み込みに失敗したため、この端末を初期状態から開始します。破損したデータはこの端末に残していますので、復旧が必要な場合はご連絡ください。')
+    return seed()
+  }
 }
-function save(data) { localStorage.setItem(STORE_KEY, JSON.stringify(data)) }
+// 失敗時は例外を投げる。呼び出し元のasync関数はそのままPromiseがrejectされ、
+// 「保存できたかのようなレスポンス」を返して呼び出し元が成功表示することを防ぐ
+// （COMMON-06）。通知はここで一元的に行うため、呼び出し側でのcatch漏れがあっても
+// トーストは出る。
+function save(data) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data))
+  } catch (e) {
+    reportSaveIssue('保存に失敗しました。この操作の内容は保存されていません。端末の空き容量、またはプライベート/シークレットモードでないことをご確認ください。')
+    throw e
+  }
+}
 function session() {
   try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)) } catch { return null }
 }
