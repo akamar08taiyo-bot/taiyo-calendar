@@ -547,6 +547,11 @@ function calendarResult(data, month, staffId, includeHidden) {
 
 export function setCsrfToken() {}
 
+// 取込の「内容を確認」から「取り込んで更新」までの間だけ使う一時データ。
+// 以前は保存データ（localStorage）に書き込んでいたため、キャンセルしたプレビューが消えずに
+// 溜まり続け、容量上限に達すると訪問記録の保存まで失敗するようになっていた。
+const pendingImports = new Map()
+
 export const api = {
   async publicOffices() {
     const data = load()
@@ -607,7 +612,11 @@ export const api = {
   async deleteProvider(providerId) { const data = load(); data.providers = data.providers.filter((row) => row.id !== providerId); save(data) },
   async importPreview(file, archiveMissing = false) {
     const rows = await parseCalendarWorkbook(file)
-    const batchId = crypto.randomUUID(); const data = load(); data.imports[batchId] = { rows, archiveMissing, name: file.name }; save(data)
+    const batchId = crypto.randomUUID(); const data = load()
+    pendingImports.clear()
+    pendingImports.set(batchId, { rows, archiveMissing, name: file.name })
+    // 旧版で保存データに残ってしまった未確定の取込データを片付ける
+    if (data.imports && Object.keys(data.imports).length) { data.imports = {}; save(data) }
     const officesByName = new Map(data.offices.map((office) => [office.name, office.id]))
     const existing = new Set(data.providers.map((row) => `${row.officeId}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`))
     const added = rows.filter((row) => !existing.has(`${officesByName.get(normalizeOfficeName(row.officeName))}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`)).length
@@ -618,12 +627,12 @@ export const api = {
     return { batchId, file: { name: file.name }, worksheetName: '訪問履歴', officeNames, months, diff: { added, updated, archived: 0, missing: 0, unchanged: 0, visitRows, uniqueVisits: visitRows, archiveMissing } }
   },
   async importConfirm(batchId) {
-    const data = load(); const batch = data.imports[batchId]; if (!batch) throw new Error('取込データが見つかりません。')
+    const data = load(); const batch = pendingImports.get(batchId); if (!batch) throw new Error('取込データが見つかりません。もう一度「内容を確認」からやり直してください。')
     const { visitTotal: insertedVisits } = mergeImportedRows(data, batch.rows)
     const importedMonth = [...new Set(batch.rows.flatMap((row) => Object.keys(row.visits || {}).map((date) => date.slice(0, 7))))].sort().at(-1) || monthNow()
     const officeName = normalizeOfficeName(batch.rows[0]?.officeName)
     const officeId = data.offices.find((office) => office.name === officeName)?.id || ''
-    delete data.imports[batchId]; save(data); return { insertedVisits, importedMonth, officeId, officeName }
+    data.imports = {}; save(data); pendingImports.delete(batchId); return { insertedVisits, importedMonth, officeId, officeName }
   },
   async analytics({ fiscalYear, staffId, comparisonMonth }) {
     const data = load()
