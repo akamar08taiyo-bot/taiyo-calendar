@@ -1,27 +1,11 @@
 // 指示書 CAL-05 の受入条件をテスト化したもの。
 // 「存在しない日付は確定不可。うるう年の2月29日は受理し、非うるう年では拒否」
 //
-// api.js は localStorage 等のブラウザAPIに依存するため、excelDate と同じ実装を
-// ここに写して検証するのではなく、判定の中核である isValidDateString と
-// formatDateInTokyo の組み合わせを、excelDate と同じ手順で確認する。
+// 取込で実際に使う src/lib/excelDate.js をそのまま検証する。
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatDateInTokyo, isValidDateString } from '../src/lib/businessDate.js'
-
-// src/api.js の excelDate と同じ判定手順
-function excelDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return formatDateInTokyo(value)
-  }
-  if (typeof value === 'number' && value > 30000 && value < 80000) {
-    return formatDateInTokyo(new Date(Date.UTC(1899, 11, 30) + value * 86400000))
-  }
-  const match = String(value || '').match(/(20\d{2})[年/-](\d{1,2})[月/-](\d{1,2})/)
-  if (!match) return null
-  const candidate = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
-  return isValidDateString(candidate) ? candidate : null
-}
+import { excelDate } from '../src/lib/excelDate.js'
 
 test('存在しない日付を取り込まない', () => {
   assert.equal(excelDate('2026年2月31日'), null)
@@ -59,4 +43,19 @@ test('日付として読めないものは null', () => {
   assert.equal(excelDate(null), null)
   assert.equal(excelDate('未定'), null)
   assert.equal(excelDate('1999/1/1'), null) // 正規表現が 20xx 年のみ対象
+})
+
+test('ExcelJS（.xlsx）の日時は、時刻に関係なくExcel上の日付で取り込む', () => {
+  const utc = { utcDates: true }
+  // ExcelJS は「2026/8/14 16:30」を 2026-08-14T16:30:00Z の Date で返す。日本時間に換算すると翌日になってしまう
+  assert.equal(excelDate(new Date('2026-08-14T00:00:00Z'), utc), '2026-08-14')
+  assert.equal(excelDate(new Date('2026-08-14T09:00:00Z'), utc), '2026-08-14')
+  assert.equal(excelDate(new Date('2026-08-14T16:30:00Z'), utc), '2026-08-14')
+  // 月末の夜の訪問が翌月に計上されない
+  assert.equal(excelDate(new Date('2026-08-31T23:00:00Z'), utc), '2026-08-31')
+})
+
+test('シリアル値に時刻（小数部）があっても日付は変わらない', () => {
+  assert.equal(excelDate(46248.6875), '2026-08-14') // 2026/8/14 16:30
+  assert.equal(excelDate(46265.9583), '2026-08-31') // 2026/8/31 23:00
 })

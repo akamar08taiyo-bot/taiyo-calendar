@@ -1,4 +1,5 @@
-import { currentBusinessMonth, formatDateInTokyo, isValidDateString } from './lib/businessDate.js'
+import { currentBusinessMonth } from './lib/businessDate.js'
+import { excelDate } from './lib/excelDate.js'
 
 const STORE_KEY = 'kyotaku-calendar-offline-v2'
 const SESSION_KEY = 'kyotaku-calendar-offline-session-v2'
@@ -84,21 +85,6 @@ function cellText(cell) {
   return String(cell.text || value).trim()
 }
 
-// Excelのセル値を業務日 'YYYY-MM-DD' に変換する。
-// 実在しない日付（2026-02-31、非うるう年の2月29日など）は null を返して取り込まない。
-function excelDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return formatDateInTokyo(value)
-  }
-  if (typeof value === 'number' && value > 30000 && value < 80000) {
-    return formatDateInTokyo(new Date(Date.UTC(1899, 11, 30) + value * 86400000))
-  }
-  const match = String(value || '').match(/(20\d{2})[年/-](\d{1,2})[月/-](\d{1,2})/)
-  if (!match) return null
-  const candidate = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
-  return isValidDateString(candidate) ? candidate : null
-}
-
 function visitCount(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.trunc(value))
   const text = String(value || '').trim()
@@ -121,6 +107,11 @@ function findColumn(sheet, rowNumber, aliases) {
   return null
 }
 
+// ExcelJS のシートは日付をUTCの同じ時刻で返す。SheetJS 経由（xlsxSheetAdapter）のシートだけ現地時刻。
+function sheetDate(sheet, value) {
+  return excelDate(value, { utcDates: !sheet.datesAreLocalTime })
+}
+
 function parseCalendarSheet(sheet) {
   const header4 = normalizedHeader(cellText(sheet.getCell('B4')))
   const header5 = normalizedHeader(cellText(sheet.getCell('B5')))
@@ -133,7 +124,7 @@ function parseCalendarSheet(sheet) {
     .replace(/\s+/g, ' ')
   const dateColumns = []
   for (let column = 8; column <= Math.min(45, sheet.columnCount); column += 1) {
-    const date = excelDate(cellText(sheet.getRow(4).getCell(column))) || excelDate(cellText(sheet.getRow(5).getCell(column)))
+    const date = sheetDate(sheet, cellText(sheet.getRow(4).getCell(column))) || sheetDate(sheet, cellText(sheet.getRow(5).getCell(column)))
     if (date) dateColumns.push({ column, date })
   }
 
@@ -184,7 +175,7 @@ function parseVisitHistorySheet(sheet) {
     const row = sheet.getRow(rowNumber)
     const name = String(cellText(row.getCell(columns.provider)) || '').trim()
     const staffName = String(cellText(row.getCell(columns.staff)) || '').trim().replace(/\s+/g, ' ')
-    const date = excelDate(cellText(row.getCell(columns.date)))
+    const date = sheetDate(sheet, cellText(row.getCell(columns.date)))
     if (!name || !staffName || !date) continue
     const officeName = String(columns.office ? cellText(row.getCell(columns.office)) : '').trim() || '営業所'
     const externalCode = String(columns.code ? cellText(row.getCell(columns.code)) : '').trim()
@@ -304,6 +295,7 @@ function xlsxSheetAdapter(XLSX, worksheet, sheetName) {
   }
   return {
     name: sheetName,
+    datesAreLocalTime: true,
     rowCount: range.e.r + 1,
     columnCount: range.e.c + 1,
     getCell: (addr) => {
@@ -547,6 +539,11 @@ function calendarResult(data, month, staffId, includeHidden) {
 
 export function setCsrfToken() {}
 
+// 取込の「内容を確認」から「取り込んで更新」までの間だけ使う一時データ。
+// 以前は保存データ（localStorage）に書き込んでいたため、キャンセルしたプレビューが消えずに
+// 溜まり続け、容量上限に達すると訪問記録の保存まで失敗するようになっていた。
+const pendingImports = new Map()
+
 export const api = {
   async publicOffices() {
     const data = load()
@@ -607,7 +604,11 @@ export const api = {
   async deleteProvider(providerId) { const data = load(); data.providers = data.providers.filter((row) => row.id !== providerId); save(data) },
   async importPreview(file, archiveMissing = false) {
     const rows = await parseCalendarWorkbook(file)
-    const batchId = crypto.randomUUID(); const data = load(); data.imports[batchId] = { rows, archiveMissing, name: file.name }; save(data)
+    const batchId = crypto.randomUUID(); const data = load()
+    pendingImports.clear()
+    pendingImports.set(batchId, { rows, archiveMissing, name: file.name })
+    // 旧版で保存データに残ってしまった未確定の取込データを片付ける
+    if (data.imports && Object.keys(data.imports).length) { data.imports = {}; save(data) }
     const officesByName = new Map(data.offices.map((office) => [office.name, office.id]))
     const existing = new Set(data.providers.map((row) => `${row.officeId}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`))
     const added = rows.filter((row) => !existing.has(`${officesByName.get(normalizeOfficeName(row.officeName))}\u0000${String(row.code || '').replace(/^(history:[^:]+):.*$/, '$1')}`)).length
@@ -618,12 +619,12 @@ export const api = {
     return { batchId, file: { name: file.name }, worksheetName: '訪問履歴', officeNames, months, diff: { added, updated, archived: 0, missing: 0, unchanged: 0, visitRows, uniqueVisits: visitRows, archiveMissing } }
   },
   async importConfirm(batchId) {
-    const data = load(); const batch = data.imports[batchId]; if (!batch) throw new Error('取込データが見つかりません。')
+    const data = load(); const batch = pendingImports.get(batchId); if (!batch) throw new Error('取込データが見つかりません。もう一度「内容を確認」からやり直してください。')
     const { visitTotal: insertedVisits } = mergeImportedRows(data, batch.rows)
     const importedMonth = [...new Set(batch.rows.flatMap((row) => Object.keys(row.visits || {}).map((date) => date.slice(0, 7))))].sort().at(-1) || monthNow()
     const officeName = normalizeOfficeName(batch.rows[0]?.officeName)
     const officeId = data.offices.find((office) => office.name === officeName)?.id || ''
-    delete data.imports[batchId]; save(data); return { insertedVisits, importedMonth, officeId, officeName }
+    data.imports = {}; save(data); pendingImports.delete(batchId); return { insertedVisits, importedMonth, officeId, officeName }
   },
   async analytics({ fiscalYear, staffId, comparisonMonth }) {
     const data = load()
