@@ -370,15 +370,17 @@ export default function App() {
     pageContent = <PrintView month={month} officeName={session.office.name} staff={staff} calendar={printCalendar} staffCalendars={printStaffCalendars} selectedStaffId={printStaffId} setSelectedStaffId={(staffId) => { setPrintCalendar(null); setPrintStaffCalendars([]); setPrintStaffId(staffId) }} search={providerSearch} setSearch={setProviderSearch} canSelectStaff={session.user.role !== 'staff'} loading={pdfLoading} generating={pdfGenerating} onChangeMonth={changeMonth} onOpenPrint={openPrintPdf} onDownload={savePdfFile}/>
   }
 
+  // 業務アプリポータルへ戻るボタンは左上：広い画面は左の列のいちばん上、狭い画面は見出しの上の段（全アプリ共通の形 .taiyo-portal-back。
+  // ユーザーの指示「太陽ポータルに戻るボタンは左上に設置。太陽ポータル全アプリ共通にする。色や大きさも含めて統一する」2026-10-28。前は見出しの右の小さな灰色の文字）
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
-      <div className="sidebar-brand"><span className="brand-symbol">営</span><span>営業管理</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
+      <div className="sidebar-portal"><a href="https://akamar08taiyo-bot.github.io/taiyo-portal/" className="taiyo-portal-back">← 業務アプリポータルへ戻る</a></div><div className="sidebar-brand"><span className="brand-symbol">営</span><span>営業管理</span><button className="sidebar-close icon-button" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
       <nav><button className={activeTab === 'calendar' ? 'active' : ''} onClick={() => { setActiveTab('calendar'); setSidebarOpen(false) }}><Icon name="calendar"/>居宅カレンダー</button><button className={activeTab === 'analysis' ? 'active' : ''} onClick={() => { setActiveTab('analysis'); setSidebarOpen(false) }}><Icon name="chart"/>実績分析</button><button className={activeTab === 'print' ? 'active' : ''} onClick={openPrintTab}><Icon name="printer"/>印刷</button></nav>
       <div className="sidebar-bottom">{session.user.role === 'system_admin' && <button onClick={openSettings}><Icon name="settings"/>システム設定</button>}<div className="retention-note"><Icon name="info" size={16}/>訪問記録は5年以上保持</div><button onClick={logout}><Icon name="logout"/>ログアウト</button></div>
     </aside>
     {sidebarOpen && <button className="sidebar-scrim" aria-label="メニューを閉じる" onClick={() => setSidebarOpen(false)}/>} 
     <main className="main-content">
-      <header className="topbar"><button className="mobile-menu icon-button" onClick={() => setSidebarOpen(true)}><Icon name="menu"/></button><div className="mobile-brand"><span className="brand-symbol">営</span>営業管理</div><div className="office-context"><span>営業所</span><strong>{session.office.name}</strong></div><div className="topbar-spacer"/><a href="https://akamar08taiyo-bot.github.io/taiyo-portal/" style={{fontSize:'11px',color:'#94a3b8',textDecoration:'none',marginRight:'12px'}}>← 業務アプリポータルへ戻る</a><div className="user-context"><Icon name="user"/><div><strong>{session.user.name}</strong><span>{roleLabel[session.user.role]}</span></div></div></header>
+      <div className="portal-back-row"><a href="https://akamar08taiyo-bot.github.io/taiyo-portal/" className="taiyo-portal-back">← 業務アプリポータルへ戻る</a></div><header className="topbar"><button className="mobile-menu icon-button" onClick={() => setSidebarOpen(true)}><Icon name="menu"/></button><div className="mobile-brand"><span className="brand-symbol">営</span>営業管理</div><div className="office-context"><span>営業所</span><strong>{session.office.name}</strong></div><div className="topbar-spacer"/><div className="user-context"><Icon name="user"/><div><strong>{session.user.name}</strong><span>{roleLabel[session.user.role]}</span></div></div></header>
       <div className="page-content">{pageContent}</div>
     </main>
     {dialog === 'import' && <ImportDialog state={importState} onFileSelect={selectImportFile} onPreview={previewImport} onConfirm={confirmImportAction} onClose={() => setDialog(null)}/>} 
