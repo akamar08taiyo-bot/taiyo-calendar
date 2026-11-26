@@ -3,7 +3,7 @@ import { Button, Icon } from './Icon'
 
 // 業務アプリポータル(taiyo-portal)でログイン時に選んだ営業所名を引き継ぐ。
 // 該当営業所のデータ(Excel取込済み)がこの端末に既にある場合のみ有効。
-function portalSessionOfficeName() {
+export function portalSessionOfficeName() {
   try {
     const raw = localStorage.getItem('taiyo_portal_session')
     const session = raw ? JSON.parse(raw) : null

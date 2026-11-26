@@ -4,7 +4,7 @@ import { AnalysisView } from './components/AnalysisView'
 import { CalendarView } from './components/CalendarView'
 import { HiddenDialog, ImportDialog, PdfDialog, SettingsDialog } from './components/Dialogs'
 import { Icon } from './components/Icon'
-import { LoginScreen } from './components/LoginScreen'
+import { LoginScreen, portalSessionOfficeName } from './components/LoginScreen'
 import { PrintView } from './components/PrintView'
 import { currentBusinessMonth } from './lib/businessDate.js'
 
@@ -74,9 +74,15 @@ export default function App() {
 
   useEffect(() => {
     setBooting(true)
-    Promise.all([api.publicOffices(), api.me().catch(() => null)]).then(([publicData, me]) => {
+    Promise.all([api.publicOffices(), api.me().catch(() => null)]).then(async ([publicData, me]) => {
       setOffices(publicData.offices)
-      if (me) { setCsrfToken(me.csrfToken); setSession(me) }
+      const selected = publicData.offices.find((office) => office.name === portalSessionOfficeName())
+      try {
+        const active = selected && selected.id !== me?.office.id ? await api.login({ officeId: selected.id }) : me
+        if (active) { setCsrfToken(active.csrfToken); setSession(active) }
+      } catch (error) {
+        setLoginError(error.message)
+      }
     }).finally(() => setBooting(false))
   }, [])
 
